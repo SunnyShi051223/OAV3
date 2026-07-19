@@ -10,48 +10,45 @@ import lombok.experimental.Accessors;
 
 import java.time.LocalDateTime;
 
-/**
- * 部门实体类
- */
 @Data
 @EqualsAndHashCode(callSuper = false)
-<Accessors(chain = true)>
+@Accessors(chain = true)
 @TableName("sys_department")
 public class SysDepartment {
 
     @TableId(value = "dept_id", type = IdType.AUTO)
-    private Long deptId;                 // 部门ID
+    private Long deptId;
 
     @TableField("parent_id")
-    private Long parentId;               // 父级部门ID
+    private Long parentId;
 
     @TableField("dept_name")
-    private String deptName;             // 部门名称
+    private String deptName;
 
     @TableField("dept_code")
-    private String deptCode;             // 部门代码
+    private String deptCode;
 
     @TableField("leader_id")
-    private Long leaderId;               // 部门负责人ID
+    private Long leaderId;
 
     @TableField("description")
-    private String description;          // 部门描述
+    private String description;
 
     @TableField("status")
-    private Integer status;              // 状态：1启用 0禁用
+    private Integer status;
 
     @TableField("deleted")
-    private Integer deleted;             // 逻辑删除：0未删除 1已删除
+    private Integer deleted;
 
     @TableField("create_time")
-    private LocalDateTime createTime;    // 创建时间
+    private LocalDateTime createTime;
 
     @TableField("update_time")
-    private LocalDateTime updateTime;    // 更新时间
+    private LocalDateTime updateTime;
 
     @TableField(exist = false)
-    private String leaderName;           // 负责人姓名
+    private String leaderName;
 
     @TableField(exist = false)
-    private String childrenCount;        // 子部门数量
+    private String childrenCount;
 }

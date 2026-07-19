@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 菜单实体类
  */
 @Data
-<EqualsAndHashCode(callSuper = false)
+@EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
 @TableName("sys_menu")
 public class SysMenu {
@@ -48,4 +48,7 @@ public class SysMenu {
 
     @TableField("update_time")
     private LocalDateTime updateTime;    // 更新时间
+
+    @TableField("deleted")
+    private Integer deleted;             // 逻辑删除：0未删除 1已删除
 }

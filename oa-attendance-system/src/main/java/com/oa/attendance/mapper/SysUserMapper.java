@@ -49,10 +49,4 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      */
     @Update("UPDATE sys_user SET deleted = 1 WHERE user_id = #{userId}")
     int softDeleteById(@Param("userId") Long userId);
-
-    /**
-     * 根据部门ID统计用户数量
-     */
-    @Select("SELECT COUNT(*) FROM sys_user WHERE dept_id = #{deptId} AND deleted = 0")
-    int countByDeptId(@Param("deptId") Long deptId);
 }

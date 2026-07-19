@@ -1,8 +1,6 @@
 package com.oa.attendance.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.oa.attendance.dto.UserCreateDTO;
 import com.oa.attendance.dto.UserUpdateDTO;
 import com.oa.attendance.entity.Result;
@@ -66,8 +64,18 @@ public class UserServiceImpl implements IUserService {
             Authentication authentication = authenticationManager
                     .authenticate(new UsernamePasswordAuthenticationToken(username, password));
 
-            // 获取用户信息
-            SysUser user = (SysUser) authentication.getPrincipal();
+            // 获取认证后的用户信息
+            org.springframework.security.core.userdetails.User userDetails =
+                (org.springframework.security.core.userdetails.User) authentication.getPrincipal();
+
+            // 根据用户名查询用户详细信息以获取用户ID
+            QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+            wrapper.eq("username", userDetails.getUsername()).eq("deleted", 0);
+            SysUser user = sysUserMapper.selectOne(wrapper);
+
+            if (user == null) {
+                return Result.error("用户不存在");
+            }
 
             // 生成JWT Token
             String token = jwtUtil.generateToken(user.getUserId());
@@ -89,9 +97,10 @@ public class UserServiceImpl implements IUserService {
 
             // 从Token中获取用户ID并查询详细信息
             String username = authentication.getName();
-            LambdaQueryWrapper<SysUser> wrapper = Wrappers.lambdaQuery();
-            wrapper.and(w -> w.eq(SysUser::getUsername, username).or().eq(SysUser::getEmployeeNo, username))
-                   .eq(SysUser::getDeleted, 0);
+
+            QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+            wrapper.and(w -> w.eq("username", username).or().eq("employee_no", username));
+            wrapper.eq("deleted", 0);
             SysUser user = sysUserMapper.selectOne(wrapper);
 
             if (user != null) {
@@ -134,16 +143,16 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public Result<?> create(UserCreateDTO dto) {
         // 检查工号是否已存在
-        LambdaQueryWrapper<SysUser> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysUser::getEmployeeNo, dto.getEmployeeNo()).eq(SysUser::getDeleted, 0);
-        int count = sysUserMapper.selectCount(wrapper);
+        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+        wrapper.eq("employee_no", dto.getEmployeeNo()).eq("deleted", 0);
+        Long count = sysUserMapper.selectCount(wrapper);
         if (count > 0) {
             return Result.error("工号已存在");
         }
 
         // 检查用户名是否已存在
-        wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysUser::getUsername, dto.getUsername()).eq(SysUser::getDeleted, 0);
+        wrapper = new QueryWrapper<>();
+        wrapper.eq("username", dto.getUsername()).eq("deleted", 0);
         count = sysUserMapper.selectCount(wrapper);
         if (count > 0) {
             return Result.error("用户名已存在");
@@ -283,8 +292,9 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public Result<List<UserListVO>> listAll() {
-        LambdaQueryWrapper<SysUser> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysUser::getDeleted, 0).orderByDesc(SysUser::getCreateTime);
+        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+        wrapper.orderByDesc("create_time");
 
         List<SysUser> users = sysUserMapper.selectList(wrapper);
         List<UserListVO> vos = users.stream().map(user -> {
@@ -343,7 +353,38 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    public Result<?> updateUser(SysUser user) {
+    public Result<?> updateUserById(UserUpdateDTO dto) {
+        SysUser existing = sysUserMapper.selectById(dto.getUserId());
+        if (existing == null) {
+            return Result.error("用户不存在");
+        }
+
+        // 检查关联数据是否存在
+        if (dto.getDeptId() != null) {
+            SysDepartment dept = sysDepartmentMapper.selectById(dto.getDeptId());
+            if (dept == null) {
+                return Result.error("部门不存在");
+            }
+        }
+
+        if (dto.getPositionId() != null) {
+            SysPosition position = sysPositionMapper.selectById(dto.getPositionId());
+            if (position == null) {
+                return Result.error("职位不存在");
+            }
+        }
+
+        if (dto.getRoleId() != null) {
+            SysRole role = sysRoleMapper.selectById(dto.getRoleId());
+            if (role == null) {
+                return Result.error("角色不存在");
+            }
+        }
+
+        SysUser user = new SysUser();
+        BeanUtils.copyProperties(dto, user);
+        user.setUpdateTime(LocalDateTime.now());
+
         int result = sysUserMapper.updateById(user);
         if (result > 0) {
             return Result.success("更新成功");

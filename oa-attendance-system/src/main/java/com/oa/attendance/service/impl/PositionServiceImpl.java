@@ -1,15 +1,16 @@
 package com.oa.attendance.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.oa.attendance.dto.PositionCreateDTO;
 import com.oa.attendance.dto.PositionUpdateDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.entity.SysDepartment;
 import com.oa.attendance.entity.SysPosition;
+import com.oa.attendance.entity.SysUser;
 import com.oa.attendance.exception.BusinessException;
 import com.oa.attendance.mapper.SysDepartmentMapper;
 import com.oa.attendance.mapper.SysPositionMapper;
+import com.oa.attendance.mapper.SysUserMapper;
 import com.oa.attendance.service.IPositionService;
 import com.oa.attendance.vo.PositionListVO;
 import org.springframework.beans.BeanUtils;
@@ -33,6 +34,9 @@ public class PositionServiceImpl implements IPositionService {
     @Autowired
     private SysDepartmentMapper departmentMapper;
 
+    @Autowired
+    private SysUserMapper sysUserMapper;
+
     @Override
     @Transactional
     public Result<?> create(PositionCreateDTO dto) {
@@ -43,11 +47,11 @@ public class PositionServiceImpl implements IPositionService {
         }
 
         // 检查职位名称是否已存在
-        LambdaQueryWrapper<SysPosition> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysPosition::getPositionName, dto.getPositionName())
-                .eq(SysPosition::getDeptId, dto.getDeptId())
-                .eq(SysPosition::getDeleted, 0);
-        int count = positionMapper.selectCount(wrapper);
+        QueryWrapper<SysPosition> wrapper = new QueryWrapper<>();
+        wrapper.eq("position_name", dto.getPositionName());
+        wrapper.eq("dept_id", dto.getDeptId());
+        wrapper.eq("deleted", 0);
+        Long count = positionMapper.selectCount(wrapper);
         if (count > 0) {
             return Result.error("该部门下职位名称已存在");
         }
@@ -80,12 +84,12 @@ public class PositionServiceImpl implements IPositionService {
         }
 
         // 检查职位名称是否与其他职位冲突（排除当前职位）
-        LambdaQueryWrapper<SysPosition> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysPosition::getPositionName, dto.getPositionName())
-                .eq(SysPosition::getDeptId, dto.getDeptId())
-                .eq(SysPosition::getDeleted, 0)
-                .ne(SysPosition::getPositionId, dto.getPositionId());
-        int count = positionMapper.selectCount(wrapper);
+        QueryWrapper<SysPosition> wrapper = new QueryWrapper<>();
+        wrapper.eq("position_name", dto.getPositionName());
+        wrapper.eq("dept_id", dto.getDeptId());
+        wrapper.eq("deleted", 0);
+        wrapper.ne("position_id", dto.getPositionId());
+        Long count = positionMapper.selectCount(wrapper);
         if (count > 0) {
             return Result.error("该部门下职位名称已存在");
         }
@@ -111,9 +115,15 @@ public class PositionServiceImpl implements IPositionService {
         }
 
         // 检查是否有用户使用该职位
-        // 注意：这里可能需要引用用户Mapper来检查，简化处理
-        // 实际项目中可通过其他方式实现检查逻辑
+        QueryWrapper<SysUser> userWrapper = new QueryWrapper<>();
+        userWrapper.eq("position_id", positionId);
+        userWrapper.eq("deleted", 0);
+        Long userCount = sysUserMapper.selectCount(userWrapper);
+        if (userCount > 0) {
+            return Result.error("该职位下存在用户，无法删除");
+        }
 
+        // 软删除：设置deleted字段
         position.setDeleted(1);
         position.setUpdateTime(LocalDateTime.now());
 
@@ -146,8 +156,9 @@ public class PositionServiceImpl implements IPositionService {
 
     @Override
     public Result<List<PositionListVO>> listAll() {
-        LambdaQueryWrapper<SysPosition> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysPosition::getDeleted, 0).orderByDesc(SysPosition::getCreateTime);
+        QueryWrapper<SysPosition> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+        wrapper.orderByDesc("create_time");
 
         List<SysPosition> positions = positionMapper.selectList(wrapper);
         List<PositionListVO> vos = positions.stream().map(position -> {
@@ -175,7 +186,11 @@ public class PositionServiceImpl implements IPositionService {
             return Result.error("部门不存在");
         }
 
-        List<SysPosition> positions = positionMapper.selectByDeptId(deptId);
+        QueryWrapper<SysPosition> wrapper = new QueryWrapper<>();
+        wrapper.eq("dept_id", deptId);
+        wrapper.eq("deleted", 0);
+        List<SysPosition> positions = positionMapper.selectList(wrapper);
+
         List<PositionListVO> vos = positions.stream().map(position -> {
             PositionListVO vo = new PositionListVO();
             BeanUtils.copyProperties(position, vo);

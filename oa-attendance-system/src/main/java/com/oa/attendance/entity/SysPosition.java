@@ -10,39 +10,36 @@ import lombok.experimental.Accessors;
 
 import java.time.LocalDateTime;
 
-/**
- * 职位实体类
- */
 @Data
-<EqualsAndHashCode(callSuper = false)>
-<Accessors(chain = true)>
+@EqualsAndHashCode(callSuper = false)
+@Accessors(chain = true)
 @TableName("sys_position")
 public class SysPosition {
 
     @TableId(value = "position_id", type = IdType.AUTO)
-    private Long positionId;             // 职位ID
+    private Long positionId;
 
     @TableField("position_name")
-    private String positionName;         // 职位名称
+    private String positionName;
 
     @TableField("dept_id")
-    private Long deptId;                 // 所属部门ID
+    private Long deptId;
 
     @TableField("level")
-    private Integer level;               // 职位等级
+    private Integer level;
 
     @TableField("description")
-    private String description;          // 职位描述
+    private String description;
 
     @TableField("deleted")
-    private Integer deleted;             // 逻辑删除：0未删除 1已删除
+    private Integer deleted;
 
     @TableField("create_time")
-    private LocalDateTime createTime;    // 创建时间
+    private LocalDateTime createTime;
 
     @TableField("update_time")
-    private LocalDateTime updateTime;    // 更新时间
+    private LocalDateTime updateTime;
 
     @TableField(exist = false)
-    private String deptName;             // 部门名称
+    private String deptName;
 }

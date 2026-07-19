@@ -27,11 +27,25 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // 根据用户名查询用户信息
-        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
-        wrapper.eq("username", username).or().eq("employee_no", username);
+        // 尝试将输入转换为数字，判断是否是用户ID
+        Long userId = null;
+        try {
+            userId = Long.parseLong(username);
+        } catch (NumberFormatException e) {
+            // 不是数字，按用户名/工号查询
+        }
 
-        SysUser sysUser = sysUserMapper.selectOne(wrapper);
+        SysUser sysUser;
+        if (userId != null) {
+            // 按ID查询用户
+            sysUser = sysUserMapper.selectById(userId);
+        } else {
+            // 按用户名/工号查询用户
+            QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+            wrapper.eq("username", username).or().eq("employee_no", username);
+
+            sysUser = sysUserMapper.selectOne(wrapper);
+        }
 
         if (sysUser == null) {
             throw new UsernameNotFoundException("用户不存在: " + username);

@@ -1,13 +1,14 @@
 package com.oa.attendance.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.oa.attendance.dto.DepartmentCreateDTO;
 import com.oa.attendance.dto.DepartmentUpdateDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.entity.SysDepartment;
+import com.oa.attendance.entity.SysUser;
 import com.oa.attendance.exception.BusinessException;
 import com.oa.attendance.mapper.SysDepartmentMapper;
+import com.oa.attendance.mapper.SysUserMapper;
 import com.oa.attendance.service.IDepartmentService;
 import com.oa.attendance.vo.DepartmentListVO;
 import com.oa.attendance.vo.DepartmentTreeNodeVO;
@@ -32,13 +33,17 @@ public class DepartmentServiceImpl implements IDepartmentService {
     @Autowired
     private SysDepartmentMapper departmentMapper;
 
+    @Autowired
+    private SysUserMapper sysUserMapper;
+
     @Override
     @Transactional
     public Result<?> create(DepartmentCreateDTO dto) {
         // 检查部门代码是否已存在
-        LambdaQueryWrapper<SysDepartment> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysDepartment::getDeptCode, dto.getDeptCode()).eq(SysDepartment::getDeleted, 0);
-        int count = departmentMapper.selectCount(wrapper);
+        QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
+        wrapper.eq("dept_code", dto.getDeptCode());
+        wrapper.eq("deleted", 0);
+        Long count = departmentMapper.selectCount(wrapper);
         if (count > 0) {
             return Result.error("部门代码已存在");
         }
@@ -65,11 +70,11 @@ public class DepartmentServiceImpl implements IDepartmentService {
         }
 
         // 检查部门代码是否与其他部门冲突（排除当前部门）
-        LambdaQueryWrapper<SysDepartment> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysDepartment::getDeptCode, dto.getDeptCode())
-                .eq(SysDepartment::getDeleted, 0)
-                .ne(SysDepartment::getDeptId, dto.getDeptId());
-        int count = departmentMapper.selectCount(wrapper);
+        QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
+        wrapper.eq("dept_code", dto.getDeptCode());
+        wrapper.eq("deleted", 0);
+        wrapper.ne("dept_id", dto.getDeptId());
+        Long count = departmentMapper.selectCount(wrapper);
         if (count > 0) {
             return Result.error("部门代码已存在");
         }
@@ -95,16 +100,22 @@ public class DepartmentServiceImpl implements IDepartmentService {
         }
 
         // 检查是否有子部门
-        LambdaQueryWrapper<SysDepartment> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysDepartment::getParentId, deptId).eq(SysDepartment::getDeleted, 0);
-        int childCount = departmentMapper.selectCount(wrapper);
+        QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
+        wrapper.eq("parent_id", deptId);
+        wrapper.eq("deleted", 0);
+        Long childCount = departmentMapper.selectCount(wrapper);
         if (childCount > 0) {
             return Result.error("该部门存在子部门，无法删除");
         }
 
         // 检查是否有用户隶属于此部门
-        // 注意：这里需要引用用户Mapper来检查是否有用户在该部门
-        // 由于循环依赖问题，此处简化处理，实际项目中可通过其他方式解决
+        QueryWrapper<SysUser> userWrapper = new QueryWrapper<>();
+        userWrapper.eq("dept_id", deptId);
+        userWrapper.eq("deleted", 0);
+        Long userCount = sysUserMapper.selectCount(userWrapper);
+        if (userCount > 0) {
+            return Result.error("该部门下存在用户，无法删除");
+        }
 
         dept.setDeleted(1);
         dept.setUpdateTime(LocalDateTime.now());
@@ -138,8 +149,9 @@ public class DepartmentServiceImpl implements IDepartmentService {
 
     @Override
     public Result<List<DepartmentListVO>> listAll() {
-        LambdaQueryWrapper<SysDepartment> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysDepartment::getDeleted, 0).orderByDesc(SysDepartment::getCreateTime);
+        QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+        wrapper.orderByDesc("create_time");
 
         List<SysDepartment> departments = departmentMapper.selectList(wrapper);
         List<DepartmentListVO> vos = departments.stream().map(dept -> {
@@ -163,8 +175,9 @@ public class DepartmentServiceImpl implements IDepartmentService {
     @Override
     public Result<List<DepartmentTreeNodeVO>> getTree() {
         // 查询所有未删除的部门
-        LambdaQueryWrapper<SysDepartment> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(SysDepartment::getDeleted, 0).orderByAsc(SysDepartment::getParentId);
+        QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
+        wrapper.eq("deleted", 0);
+        wrapper.orderByAsc("parent_id");
 
         List<SysDepartment> departments = departmentMapper.selectList(wrapper);
 

@@ -53,9 +53,9 @@ public interface IUserService {
     Result<List<UserListVO>> listByDeptId(Long deptId);
 
     /**
-     * 更新用户信息
+     * 根据ID更新用户信息
      */
-    Result<?> updateUser(UserListVO user);
+    Result<?> updateUserById(UserUpdateDTO dto);
 
     /**
      * 修改密码
