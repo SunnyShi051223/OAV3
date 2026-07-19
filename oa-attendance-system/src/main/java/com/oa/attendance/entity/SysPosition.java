@@ -34,9 +34,15 @@ public class SysPosition {
     @TableField("description")
     private String description;          // 职位描述
 
+    @TableField("deleted")
+    private Integer deleted;             // 逻辑删除：0未删除 1已删除
+
     @TableField("create_time")
     private LocalDateTime createTime;    // 创建时间
 
     @TableField("update_time")
     private LocalDateTime updateTime;    // 更新时间
+
+    @TableField(exist = false)
+    private String deptName;             // 部门名称
 }

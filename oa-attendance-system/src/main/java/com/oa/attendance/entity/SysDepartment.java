@@ -40,9 +40,18 @@ public class SysDepartment {
     @TableField("status")
     private Integer status;              // 状态：1启用 0禁用
 
+    @TableField("deleted")
+    private Integer deleted;             // 逻辑删除：0未删除 1已删除
+
     @TableField("create_time")
     private LocalDateTime createTime;    // 创建时间
 
     @TableField("update_time")
     private LocalDateTime updateTime;    // 更新时间
+
+    @TableField(exist = false)
+    private String leaderName;           // 负责人姓名
+
+    @TableField(exist = false)
+    private String childrenCount;        // 子部门数量
 }

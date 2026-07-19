@@ -68,6 +68,9 @@ public class SysUser {
     @TableField("status")
     private Integer status;              // 状态：1正常 0禁用
 
+    @TableField("deleted")
+    private Integer deleted;             // 逻辑删除：0未删除 1已删除
+
     @TableField("last_login_time")
     private LocalDateTime lastLoginTime; // 最后登录时间
 
