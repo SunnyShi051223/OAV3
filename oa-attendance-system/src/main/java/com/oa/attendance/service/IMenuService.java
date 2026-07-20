@@ -44,6 +44,11 @@ public interface IMenuService {
     Result<List<MenuTreeNodeVO>> getTree();
 
     /**
+     * 查询当前用户菜单树
+     */
+    Result<List<MenuTreeNodeVO>> getCurrentUserTree(String username);
+
+    /**
      * 根据父级ID查询子菜单
      */
     Result<List<MenuListVO>> getByParentId(Long parentId);

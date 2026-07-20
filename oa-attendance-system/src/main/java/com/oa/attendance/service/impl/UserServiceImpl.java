@@ -1,6 +1,7 @@
 package com.oa.attendance.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.oa.attendance.dto.ProfileUpdateDTO;
 import com.oa.attendance.dto.UserCreateDTO;
 import com.oa.attendance.dto.UserUpdateDTO;
 import com.oa.attendance.entity.Result;
@@ -15,6 +16,7 @@ import com.oa.attendance.mapper.SysPermissionMapper;
 import com.oa.attendance.mapper.SysPositionMapper;
 import com.oa.attendance.mapper.SysRoleMapper;
 import com.oa.attendance.mapper.SysUserMapper;
+import com.oa.attendance.service.DataScopeService;
 import com.oa.attendance.service.IUserService;
 import com.oa.attendance.service.TokenBlacklistService;
 import com.oa.attendance.util.JwtUtil;
@@ -71,6 +73,9 @@ public class UserServiceImpl implements IUserService {
 
     @Autowired
     private TokenBlacklistService tokenBlacklistService;
+
+    @Autowired
+    private DataScopeService dataScopeService;
 
     @Override
     public Result<?> login(String username, String password) {
@@ -180,6 +185,10 @@ public class UserServiceImpl implements IUserService {
     @Override
     @Transactional
     public Result<?> create(UserCreateDTO dto) {
+        if (!dataScopeService.canAccessDepartment(dto.getDeptId())) {
+            return Result.error("只能维护本部门用户");
+        }
+
         // 检查工号是否已存在
         QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
         wrapper.eq("employee_no", dto.getEmployeeNo()).eq("deleted", 0);
@@ -211,6 +220,17 @@ public class UserServiceImpl implements IUserService {
             }
         }
 
+        if (dto.getPositionId() != null) {
+            SysPosition position = sysPositionMapper.selectById(dto.getPositionId());
+            if (position != null && !dataScopeService.canAccessDepartment(position.getDeptId())) {
+                return Result.error("只能选择本部门职位");
+            }
+        }
+
+        if (dto.getRoleId() != null && !dataScopeService.canAssignRole(dto.getRoleId())) {
+            return Result.error("只能分配允许范围内的角色");
+        }
+
         if (dto.getRoleId() != null) {
             SysRole role = sysRoleMapper.selectById(dto.getRoleId());
             if (role == null) {
@@ -235,6 +255,23 @@ public class UserServiceImpl implements IUserService {
     @Override
     @Transactional
     public Result<?> update(UserUpdateDTO dto) {
+        if (dto.getRoleId() != null && !dataScopeService.canAssignRole(dto.getRoleId())) {
+            return Result.error("只能分配允许范围内的角色");
+        }
+
+        if (dto.getPositionId() != null) {
+            SysPosition scopedPosition = sysPositionMapper.selectById(dto.getPositionId());
+            if (scopedPosition != null && !dataScopeService.canAccessDepartment(scopedPosition.getDeptId())) {
+                return Result.error("只能选择本部门职位");
+            }
+        }
+
+        SysUser scopedUser = sysUserMapper.selectById(dto.getUserId());
+        if (scopedUser != null && (!dataScopeService.canAccessDepartment(scopedUser.getDeptId())
+                || !dataScopeService.canAccessDepartment(dto.getDeptId()))) {
+            return Result.error("只能维护本部门用户");
+        }
+
         SysUser existing = sysUserMapper.selectById(dto.getUserId());
         if (existing == null) {
             return Result.error("用户不存在");
@@ -275,8 +312,35 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
+    public Result<?> updateProfile(ProfileUpdateDTO dto, String currentUsername) {
+        SysUser user = sysUserMapper.findByUsername(currentUsername);
+        if (user == null) {
+            return Result.error("当前用户不存在");
+        }
+
+        SysUser updateUser = new SysUser();
+        updateUser.setUserId(user.getUserId());
+        updateUser.setNickname(dto.getNickname());
+        updateUser.setGender(dto.getGender());
+        updateUser.setPhone(dto.getPhone());
+        updateUser.setEmail(dto.getEmail());
+        updateUser.setBirthDate(dto.getBirthDate());
+        updateUser.setUpdateTime(LocalDateTime.now());
+
+        int result = sysUserMapper.updateById(updateUser);
+        if (result > 0) {
+            return Result.success("个人资料更新成功", buildAuthUser(sysUserMapper.selectById(user.getUserId())));
+        }
+        return Result.error("个人资料更新失败");
+    }
+
+    @Override
+    @Transactional
     public Result<?> delete(Long userId) {
         SysUser user = sysUserMapper.selectById(userId);
+        if (user != null && !dataScopeService.canAccessDepartment(user.getDeptId())) {
+            return Result.error("只能删除本部门用户");
+        }
 
         if (user == null) {
             throw new BusinessException("用户不存在");
@@ -293,6 +357,9 @@ public class UserServiceImpl implements IUserService {
     public Result<UserListVO> getById(Long id) {
         SysUser user = sysUserMapper.selectById(id);
         if (user != null && user.getDeleted() == 0) {
+            if (!dataScopeService.canAccessDepartment(user.getDeptId())) {
+                return Result.error("只能查看本部门用户");
+            }
             UserListVO vo = new UserListVO();
             BeanUtils.copyProperties(user, vo);
 
@@ -329,6 +396,9 @@ public class UserServiceImpl implements IUserService {
     public Result<List<UserListVO>> listAll() {
         QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
+        if (dataScopeService.hasDepartmentDataAccess()) {
+            wrapper.eq("dept_id", dataScopeService.getCurrentDeptId());
+        }
         wrapper.orderByDesc("create_time");
 
         List<SysUser> users = sysUserMapper.selectList(wrapper);
@@ -368,6 +438,10 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public Result<List<UserListVO>> listByDeptId(Long deptId) {
+        if (!dataScopeService.canAccessDepartment(deptId)) {
+            return Result.error("只能查看本部门用户");
+        }
+
         SysDepartment dept = sysDepartmentMapper.selectById(deptId);
         if (dept == null) {
             return Result.error("部门不存在");
@@ -389,7 +463,21 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public Result<?> updateUserById(UserUpdateDTO dto) {
+        if (dto.getRoleId() != null && !dataScopeService.canAssignRole(dto.getRoleId())) {
+            return Result.error("只能分配允许范围内的角色");
+        }
+        if (dto.getPositionId() != null) {
+            SysPosition scopedPosition = sysPositionMapper.selectById(dto.getPositionId());
+            if (scopedPosition != null && !dataScopeService.canAccessDepartment(scopedPosition.getDeptId())) {
+                return Result.error("只能选择本部门职位");
+            }
+        }
+
         SysUser existing = sysUserMapper.selectById(dto.getUserId());
+        if (existing != null && (!dataScopeService.canAccessDepartment(existing.getDeptId())
+                || !dataScopeService.canAccessDepartment(dto.getDeptId()))) {
+            return Result.error("只能维护本部门用户");
+        }
         if (existing == null) {
             return Result.error("用户不存在");
         }

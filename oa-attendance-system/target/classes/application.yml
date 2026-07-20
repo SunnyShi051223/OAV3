@@ -4,22 +4,6 @@ server:
 spring:
   application:
     name: attendance-system
-  profiles:
-    active: dev
-  config:
-    import:
-      - optional:nacos:${spring.application.name}.yaml
-  cloud:
-    nacos:
-      config:
-        server-addr: localhost:8848
-        file-extension: yaml
-        group: DEFAULT_GROUP
-        refresh-enabled: true
-      discovery:
-        server-addr: localhost:8848
-        group: DEFAULT_GROUP
-        namespace:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/oa_system?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
@@ -37,14 +21,10 @@ spring:
         max-wait: -1ms
         max-idle: 8
         min-idle: 0
-  elasticsearch:
-    uris: http://localhost:9200
-    connection-timeout: 3s
-    socket-timeout: 5s
-  data:
-    elasticsearch:
-      repositories:
-        enabled: true
+  cloud:
+    nacos:
+      config:
+        enabled: false
 
 # MyBatis配置
 mybatis-plus:
@@ -65,9 +45,10 @@ jwt:
   expire: 604800 # 7天
   header: Authorization
 
+
+
 # 日志配置
 logging:
   level:
     com.oa.attendance.mapper: debug
     org.springframework.security: debug
-    org.springframework.data.elasticsearch: info

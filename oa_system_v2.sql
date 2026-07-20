@@ -220,6 +220,16 @@ CREATE TABLE `sys_menu`  (
   INDEX `idx_parent_sort`(`parent_id` ASC, `sort_order` ASC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '菜单表';
 
+-- 插入默认菜单数据
+INSERT INTO `sys_menu` VALUES (1, 0, '工作台', '/dashboard', 'DashboardView', 'dashboard', 1, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_menu` VALUES (2, 0, '系统管理', '/system', 'LayoutView', 'system', 2, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_menu` VALUES (3, 2, '用户管理', '/system/user', 'UserManageView', 'user', 1, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_menu` VALUES (4, 2, '部门管理', '/system/dept', 'DepartmentManageView', 'department', 2, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_menu` VALUES (5, 2, '职位管理', '/system/position', 'PositionManageView', 'position', 3, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_menu` VALUES (6, 2, '角色管理', '/system/role', 'RoleManageView', 'role', 4, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_menu` VALUES (7, 2, '菜单管理', '/system/menu', 'MenuManageView', 'menu', 5, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_menu` VALUES (8, 0, '制度检索', '/documents', 'DocumentsView', 'document', 3, 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+
 -- ----------------------------
 -- Table structure for sys_permission
 -- ----------------------------
@@ -259,6 +269,12 @@ INSERT INTO `sys_permission` VALUES (18, '制度文档修改', 'document:update'
 INSERT INTO `sys_permission` VALUES (19, '制度文档删除', 'document:delete', '删除制度文档', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
 INSERT INTO `sys_permission` VALUES (20, '制度文档查询', 'document:query', '制度文档全文检索', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
 INSERT INTO `sys_permission` VALUES (21, '制度文档索引', 'document:index', '重建制度文档ES索引', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (22, '角色新增', 'role:add', '新增角色信息', 'role', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (23, '角色修改', 'role:update', '修改角色信息', 'role', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (24, '角色删除', 'role:delete', '删除角色信息', 'role', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (25, '角色查询', 'role:query', '查询角色信息', 'role', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (26, '角色菜单授权', 'role:menu', '维护角色菜单关系', 'role', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (27, '角色权限授权', 'role:permission', '维护角色权限关系', 'role', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
 
 -- ----------------------------
 -- Table structure for sys_position
@@ -319,6 +335,24 @@ CREATE TABLE `sys_role_menu`  (
   CONSTRAINT `fk_role_menu_menu` FOREIGN KEY (`menu_id`) REFERENCES `sys_menu` (`menu_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '角色菜单关联表';
 
+-- 插入默认角色菜单数据
+INSERT INTO `sys_role_menu` VALUES (1, 1, 1, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (2, 1, 8, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (3, 2, 1, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (4, 2, 2, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (5, 2, 3, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (6, 2, 4, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (7, 2, 5, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (8, 2, 8, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (9, 3, 1, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (10, 3, 2, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (11, 3, 3, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (12, 3, 4, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (13, 3, 5, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (14, 3, 6, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (15, 3, 7, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_menu` VALUES (16, 3, 8, '2026-07-19 20:54:06');
+
 -- ----------------------------
 -- Table structure for sys_role_permission
 -- ----------------------------
@@ -336,41 +370,51 @@ CREATE TABLE `sys_role_permission`  (
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '角色权限关联表';
 
 -- 插入默认角色权限数据
-INSERT INTO `sys_role_permission` VALUES (1, 1, 4, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (2, 1, 8, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (3, 1, 12, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (4, 2, 2, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (1, 1, 20, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (2, 2, 1, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (3, 2, 2, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (4, 2, 3, '2026-07-19 20:54:06');
 INSERT INTO `sys_role_permission` VALUES (5, 2, 4, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (6, 2, 8, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (7, 2, 9, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (8, 2, 10, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (9, 2, 12, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (10, 3, 1, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (11, 3, 2, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (12, 3, 3, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (13, 3, 4, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (14, 3, 5, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (15, 3, 6, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (16, 3, 7, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (17, 3, 8, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (18, 3, 9, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (19, 3, 10, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (20, 3, 11, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (21, 3, 12, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (22, 3, 13, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (23, 3, 14, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (24, 3, 15, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (25, 3, 16, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (26, 1, 20, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (27, 2, 17, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (28, 2, 18, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (29, 2, 20, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (30, 2, 21, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (31, 3, 17, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (32, 3, 18, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (33, 3, 19, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (34, 3, 20, '2026-07-19 20:54:06');
-INSERT INTO `sys_role_permission` VALUES (35, 3, 21, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (6, 2, 5, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (7, 2, 6, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (8, 2, 7, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (9, 2, 8, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (10, 2, 13, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (11, 2, 14, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (12, 2, 15, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (13, 2, 16, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (14, 2, 17, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (15, 2, 18, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (16, 2, 20, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (17, 2, 21, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (18, 2, 25, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (19, 3, 1, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (20, 3, 2, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (21, 3, 3, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (22, 3, 4, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (23, 3, 5, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (24, 3, 6, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (25, 3, 7, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (26, 3, 8, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (27, 3, 9, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (28, 3, 10, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (29, 3, 11, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (30, 3, 12, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (31, 3, 13, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (32, 3, 14, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (33, 3, 15, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (34, 3, 16, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (35, 3, 17, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (36, 3, 18, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (37, 3, 19, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (38, 3, 20, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (39, 3, 21, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (40, 3, 22, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (41, 3, 23, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (42, 3, 24, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (43, 3, 25, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (44, 3, 26, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (45, 3, 27, '2026-07-19 20:54:06');
 
 -- ----------------------------
 -- Table structure for sys_user
@@ -411,6 +455,8 @@ CREATE TABLE `sys_user`  (
 
 -- 插入默认管理员用户
 INSERT INTO `sys_user` VALUES (1, 'A0001', 'admin', '$2a$10$A95mGHC9GOEiVkvrQKpLNOX2JVrZVwIBfCfsaHH1wghaI0S1l1Y7O', '系统管理员', 'Admin', NULL, '男', '13800000000', 'admin@oa.com', NULL, '2026-07-19', 1, 3, 3, 1, 0, NULL, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_user` VALUES (2, 'M0001', 'manager', '$2a$10$A95mGHC9GOEiVkvrQKpLNOX2JVrZVwIBfCfsaHH1wghaI0S1l1Y7O', '部门主管', 'Manager', NULL, '男', '13800000001', 'manager@oa.com', NULL, '2026-07-19', 2, 2, 2, 1, 0, NULL, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_user` VALUES (3, 'E0001', 'employee', '$2a$10$A95mGHC9GOEiVkvrQKpLNOX2JVrZVwIBfCfsaHH1wghaI0S1l1Y7O', '普通员工', 'Employee', NULL, '女', '13800000002', 'employee@oa.com', NULL, '2026-07-19', 2, 1, 1, 1, 0, NULL, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
 
 -- 插入默认制度文档数据
 INSERT INTO `doc_document` VALUES (1, '考勤管理制度', '员工应在规定工作时间内完成签到和签退。迟到、早退、缺勤、加班按考勤规则自动计算，特殊情况可发起补卡或请假审批。', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');

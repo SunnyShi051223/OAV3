@@ -35,8 +35,20 @@ button.secondary {
   background: #dceee8;
 }
 
+button.danger {
+  background: #b42318;
+}
+
+button.small {
+  min-height: 32px;
+  margin-right: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid #c9d6d1;
   border-radius: 6px;
@@ -79,14 +91,26 @@ p {
 }
 
 .form,
-.document-form {
+.document-form,
+.crud-form,
+.profile-form {
   display: grid;
   gap: 16px;
 }
 
-.form label {
+.form label,
+.profile-form label {
   display: grid;
   gap: 8px;
+}
+
+.crud-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 20px;
+}
+
+.profile-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .layout {
@@ -111,7 +135,9 @@ nav {
   gap: 10px;
 }
 
-nav a {
+nav a,
+.nav-group > a {
+  display: block;
   border-radius: 6px;
   padding: 11px 12px;
   color: #d9eee8;
@@ -121,6 +147,22 @@ nav a {
 nav a.router-link-active {
   color: #123c35;
   background: #fff;
+}
+
+.nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.nav-children {
+  display: grid;
+  gap: 4px;
+  padding-left: 12px;
+}
+
+.nav-children a {
+  padding: 9px 10px;
+  font-size: 14px;
 }
 
 main {
@@ -178,6 +220,48 @@ main {
   padding: 20px;
 }
 
+.sub-panel {
+  margin-top: 18px;
+  border-top: 1px solid #d6e0dc;
+  padding-top: 18px;
+}
+
+.checkbox-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.checkbox-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-list input {
+  width: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid #e2e9e6;
+  padding: 12px 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.data-table th {
+  color: #53655e;
+  font-weight: 600;
+  background: #f6faf8;
+}
+
 .permission-list {
   display: flex;
   flex-wrap: wrap;
@@ -220,6 +304,10 @@ main {
   color: #146c5a;
 }
 
+.muted {
+  color: #65756f;
+}
+
 @media (max-width: 760px) {
   .layout {
     grid-template-columns: 1fr;
@@ -238,6 +326,12 @@ main {
   }
 
   .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .crud-form,
+  .profile-form,
+  .checkbox-list {
     grid-template-columns: 1fr;
   }
 

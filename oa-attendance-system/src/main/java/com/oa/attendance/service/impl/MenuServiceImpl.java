@@ -5,8 +5,10 @@ import com.oa.attendance.dto.MenuCreateDTO;
 import com.oa.attendance.dto.MenuUpdateDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.entity.SysMenu;
+import com.oa.attendance.entity.SysUser;
 import com.oa.attendance.exception.BusinessException;
 import com.oa.attendance.mapper.SysMenuMapper;
+import com.oa.attendance.mapper.SysUserMapper;
 import com.oa.attendance.service.IMenuService;
 import com.oa.attendance.vo.MenuListVO;
 import com.oa.attendance.vo.MenuTreeNodeVO;
@@ -30,6 +32,9 @@ public class MenuServiceImpl implements IMenuService {
 
     @Autowired
     private SysMenuMapper menuMapper;
+
+    @Autowired
+    private SysUserMapper userMapper;
 
     @Override
     @Transactional
@@ -131,6 +136,17 @@ public class MenuServiceImpl implements IMenuService {
         List<MenuTreeNodeVO> treeNodes = buildTree(menus);
 
         return Result.success("查询成功", treeNodes);
+    }
+
+    @Override
+    public Result<List<MenuTreeNodeVO>> getCurrentUserTree(String username) {
+        SysUser user = userMapper.findByUsername(username);
+        if (user == null) {
+            return Result.error("当前用户不存在");
+        }
+
+        List<SysMenu> menus = menuMapper.selectMenusByUserId(user.getUserId());
+        return Result.success("查询成功", buildTree(menus));
     }
 
     @Override

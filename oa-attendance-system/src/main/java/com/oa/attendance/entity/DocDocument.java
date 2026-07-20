@@ -39,4 +39,7 @@ public class DocDocument {
 
     @TableField(exist = false)
     private String authorName;
+
+    @TableField(exist = false)
+    private String tags;
 }
