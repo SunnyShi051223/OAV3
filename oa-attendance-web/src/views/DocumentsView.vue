@@ -11,7 +11,7 @@
     </section>
 
     <section class="search-row">
-      <input v-model.trim="keyword" placeholder="输入关键词" @keyup.enter="search" />
+      <input v-model.trim="keyword" placeholder="输入关键词、制度名称或标签" @keyup.enter="search" />
       <button @click="search">检索</button>
     </section>
     <p v-if="message" class="notice">{{ message }}</p>
@@ -23,15 +23,24 @@
       <form class="document-form" @submit.prevent="create">
         <input v-model.trim="form.title" placeholder="标题" />
         <textarea v-model.trim="form.content" placeholder="内容"></textarea>
-        <button type="submit">保存并同步ES</button>
+        <button type="submit">保存并同步 ES</button>
       </form>
     </section>
 
     <section class="document-list">
       <article v-for="doc in documents" :key="doc.docId" class="document-item">
         <h3 v-html="doc.titleHighlight || doc.title"></h3>
+        <div v-if="doc.tagsHighlight || doc.tags" class="tag-list">
+          <span v-if="doc.tagsHighlight" class="tag-chip" v-html="doc.tagsHighlight"></span>
+          <span v-for="tag in splitTags(doc.tags)" v-else :key="`${doc.docId}-${tag}`" class="tag-chip">
+            {{ tag }}
+          </span>
+        </div>
         <p v-html="doc.contentHighlight || doc.content"></p>
-        <span>{{ doc.authorName || '系统' }}</span>
+        <div class="document-meta">
+          <span>{{ doc.authorName || '系统' }}</span>
+          <span>{{ formatTime(doc.updateTime || doc.createTime) }}</span>
+        </div>
       </article>
     </section>
   </AppShell>
@@ -76,5 +85,19 @@ async function create() {
   form.title = '';
   form.content = '';
   await load();
+}
+
+function splitTags(tags) {
+  if (!tags) {
+    return [];
+  }
+  return tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+}
+
+function formatTime(value) {
+  if (!value) {
+    return '-';
+  }
+  return value.replace('T', ' ').slice(0, 16);
 }
 </script>

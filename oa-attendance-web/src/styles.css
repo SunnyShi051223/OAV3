@@ -290,6 +290,30 @@ main {
   line-height: 1.7;
 }
 
+.document-meta,
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.document-meta {
+  justify-content: space-between;
+}
+
+.tag-list {
+  margin: 8px 0 12px;
+}
+
+.tag-chip {
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: #146c5a;
+  background: #e2f1ec;
+  font-size: 13px;
+}
+
 .document-item em {
   color: #ad3d18;
   background: #fff0db;
