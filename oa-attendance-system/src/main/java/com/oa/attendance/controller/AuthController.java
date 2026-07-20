@@ -1,12 +1,14 @@
 package com.oa.attendance.controller;
 
+import com.oa.attendance.dto.LoginDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
 
 /**
  * 用户控制器
@@ -23,9 +25,8 @@ public class AuthController {
      * 用户登录
      */
     @PostMapping("/login")
-    public Result<?> login(@RequestParam @NotBlank(message = "用户名不能为空") String username,
-                           @RequestParam @NotBlank(message = "密码不能为空") String password) {
-        return userService.login(username, password);
+    public Result<?> login(@Valid @RequestBody LoginDTO dto) {
+        return userService.login(dto.getUsername(), dto.getPassword());
     }
 
     /**
@@ -40,8 +41,15 @@ public class AuthController {
      * 退出登录
      */
     @PostMapping("/logout")
-    public Result<?> logout() {
-        // 在JWT模式下，服务端无需特殊处理退出，只需前端清除Token即可
-        return Result.success("退出成功");
+    public Result<?> logout(HttpServletRequest request) {
+        return userService.logout(parseToken(request));
+    }
+
+    private String parseToken(HttpServletRequest request) {
+        String headerAuth = request.getHeader("Authorization");
+        if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
+            return headerAuth.substring(7);
+        }
+        return null;
     }
 }

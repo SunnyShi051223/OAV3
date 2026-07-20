@@ -31,6 +31,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private JwtUtil jwtUtil;
 
     @Autowired
+    private com.oa.attendance.service.TokenBlacklistService tokenBlacklistService;
+
+    @Autowired
     private UserDetailsService userDetailsService;
 
     @Override
@@ -41,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 从请求头中获取JWT Token
             String jwt = parseJwt(request);
 
-            if (jwt != null && jwtUtil.validateToken(jwt)) {
+            if (jwt != null && jwtUtil.validateToken(jwt) && !tokenBlacklistService.isBlacklisted(jwt)) {
                 // 从Token中获取用户ID
                 Long userId = jwtUtil.getUserIdFromToken(jwt);
 

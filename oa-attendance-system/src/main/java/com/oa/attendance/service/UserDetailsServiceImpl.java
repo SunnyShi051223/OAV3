@@ -1,7 +1,11 @@
 package com.oa.attendance.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.oa.attendance.entity.SysPermission;
+import com.oa.attendance.entity.SysRole;
 import com.oa.attendance.entity.SysUser;
+import com.oa.attendance.mapper.SysPermissionMapper;
+import com.oa.attendance.mapper.SysRoleMapper;
 import com.oa.attendance.mapper.SysUserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
@@ -24,6 +28,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Autowired
     private SysUserMapper sysUserMapper;
+
+    @Autowired
+    private SysPermissionMapper sysPermissionMapper;
+
+    @Autowired
+    private SysRoleMapper sysRoleMapper;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -51,11 +61,25 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             throw new UsernameNotFoundException("用户不存在: " + username);
         }
 
-        // 获取用户权限列表
+        if (sysUser.getDeleted() != null && sysUser.getDeleted() == 1) {
+            throw new UsernameNotFoundException("用户不存在: " + username);
+        }
+
+        // 从数据库加载用户权限
         List<GrantedAuthority> authorities = new ArrayList<>();
-        // 这里可以根据用户的角色或权限表来设置权限
-        // 为简单起见，暂时给每个用户赋予USER权限
-        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        List<SysPermission> permissions = sysPermissionMapper.selectPermissionsByUserId(sysUser.getUserId());
+        if (permissions != null) {
+            for (SysPermission perm : permissions) {
+                authorities.add(new SimpleGrantedAuthority(perm.getPermissionCode()));
+            }
+        }
+        if (sysUser.getRoleId() != null) {
+            SysRole role = sysRoleMapper.selectById(sysUser.getRoleId());
+            if (role != null && role.getRoleCode() != null) {
+                authorities.add(new SimpleGrantedAuthority(role.getRoleCode()));
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getRoleCode()));
+            }
+        }
 
         // 构建UserDetails对象
         return User.builder()

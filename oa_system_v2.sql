@@ -183,6 +183,7 @@ CREATE TABLE `sys_department`  (
   `leader_id` bigint NULL DEFAULT NULL COMMENT '部门负责人ID',
   `description` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '部门描述',
   `status` tinyint NULL DEFAULT 1 COMMENT '状态：1启用 0禁用',
+  `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`dept_id`) USING BTREE,
@@ -193,11 +194,11 @@ CREATE TABLE `sys_department`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 6 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '部门表';
 
 -- 插入默认部门数据
-INSERT INTO `sys_department` VALUES (1, 0, '总公司', 'HQ', NULL, '总部', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
-INSERT INTO `sys_department` VALUES (2, 1, '研发部', 'RD', NULL, '研发部门', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
-INSERT INTO `sys_department` VALUES (3, 1, '人事部', 'HR', NULL, '人力资源部门', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
-INSERT INTO `sys_department` VALUES (4, 2, '后端组', 'BE', NULL, '后端开发组', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
-INSERT INTO `sys_department` VALUES (5, 2, '前端组', 'FE', NULL, '前端开发组', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_department` VALUES (1, 0, '总公司', 'HQ', NULL, '总部', 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_department` VALUES (2, 1, '研发部', 'RD', NULL, '研发部门', 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_department` VALUES (3, 1, '人事部', 'HR', NULL, '人力资源部门', 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_department` VALUES (4, 2, '后端组', 'BE', NULL, '后端开发组', 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_department` VALUES (5, 2, '前端组', 'FE', NULL, '前端开发组', 1, 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
 
 -- ----------------------------
 -- Table structure for sys_menu
@@ -212,6 +213,7 @@ CREATE TABLE `sys_menu`  (
   `icon` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '图标',
   `sort_order` int NULL DEFAULT 0 COMMENT '排序',
   `visible` tinyint NULL DEFAULT 1 COMMENT '是否可见',
+  `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`menu_id`) USING BTREE,
@@ -235,6 +237,29 @@ CREATE TABLE `sys_permission`  (
   INDEX `idx_module`(`module` ASC) USING BTREE
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '权限表';
 
+-- 插入默认权限数据
+INSERT INTO `sys_permission` VALUES (1, '用户新增', 'user:add', '新增员工信息', 'user', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (2, '用户修改', 'user:update', '修改员工信息', 'user', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (3, '用户删除', 'user:delete', '删除员工信息', 'user', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (4, '用户查询', 'user:query', '查询员工信息', 'user', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (5, '部门新增', 'department:add', '新增部门信息', 'department', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (6, '部门修改', 'department:update', '修改部门信息', 'department', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (7, '部门删除', 'department:delete', '删除部门信息', 'department', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (8, '部门查询', 'department:query', '查询部门信息', 'department', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (9, '职位新增', 'position:add', '新增职位信息', 'position', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (10, '职位修改', 'position:update', '修改职位信息', 'position', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (11, '职位删除', 'position:delete', '删除职位信息', 'position', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (12, '职位查询', 'position:query', '查询职位信息', 'position', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (13, '菜单新增', 'menu:add', '新增菜单信息', 'menu', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (14, '菜单修改', 'menu:update', '修改菜单信息', 'menu', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (15, '菜单删除', 'menu:delete', '删除菜单信息', 'menu', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (16, '菜单查询', 'menu:query', '查询菜单信息', 'menu', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (17, '制度文档新增', 'document:add', '新增制度文档', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (18, '制度文档修改', 'document:update', '修改制度文档', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (19, '制度文档删除', 'document:delete', '删除制度文档', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (20, '制度文档查询', 'document:query', '制度文档全文检索', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_permission` VALUES (21, '制度文档索引', 'document:index', '重建制度文档ES索引', 'document', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+
 -- ----------------------------
 -- Table structure for sys_position
 -- ----------------------------
@@ -245,6 +270,7 @@ CREATE TABLE `sys_position`  (
   `dept_id` bigint NOT NULL COMMENT '所属部门ID',
   `level` int NULL DEFAULT 1 COMMENT '职位等级',
   `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '职位描述',
+  `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`position_id`) USING BTREE,
@@ -253,9 +279,9 @@ CREATE TABLE `sys_position`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 4 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '职位表';
 
 -- 插入默认职位数据
-INSERT INTO `sys_position` VALUES (1, '普通员工', 2, 1, '普通员工职位', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
-INSERT INTO `sys_position` VALUES (2, '部门主管', 2, 3, '部门主管职位', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
-INSERT INTO `sys_position` VALUES (3, '系统管理员', 1, 5, '系统管理员职位', '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_position` VALUES (1, '普通员工', 2, 1, '普通员工职位', 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_position` VALUES (2, '部门主管', 2, 3, '部门主管职位', 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_position` VALUES (3, '系统管理员', 1, 5, '系统管理员职位', 0, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
 
 -- ----------------------------
 -- Table structure for sys_role
@@ -309,6 +335,43 @@ CREATE TABLE `sys_role_permission`  (
   CONSTRAINT `fk_role_permission_permission` FOREIGN KEY (`permission_id`) REFERENCES `sys_permission` (`permission_id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '角色权限关联表';
 
+-- 插入默认角色权限数据
+INSERT INTO `sys_role_permission` VALUES (1, 1, 4, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (2, 1, 8, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (3, 1, 12, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (4, 2, 2, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (5, 2, 4, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (6, 2, 8, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (7, 2, 9, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (8, 2, 10, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (9, 2, 12, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (10, 3, 1, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (11, 3, 2, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (12, 3, 3, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (13, 3, 4, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (14, 3, 5, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (15, 3, 6, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (16, 3, 7, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (17, 3, 8, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (18, 3, 9, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (19, 3, 10, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (20, 3, 11, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (21, 3, 12, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (22, 3, 13, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (23, 3, 14, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (24, 3, 15, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (25, 3, 16, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (26, 1, 20, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (27, 2, 17, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (28, 2, 18, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (29, 2, 20, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (30, 2, 21, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (31, 3, 17, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (32, 3, 18, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (33, 3, 19, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (34, 3, 20, '2026-07-19 20:54:06');
+INSERT INTO `sys_role_permission` VALUES (35, 3, 21, '2026-07-19 20:54:06');
+
 -- ----------------------------
 -- Table structure for sys_user
 -- ----------------------------
@@ -330,6 +393,7 @@ CREATE TABLE `sys_user`  (
   `position_id` bigint NULL DEFAULT NULL COMMENT '职位ID',
   `role_id` bigint NULL DEFAULT NULL COMMENT '角色ID',
   `status` tinyint NULL DEFAULT 1 COMMENT '状态：1正常 0禁用',
+  `deleted` tinyint NULL DEFAULT 0 COMMENT '逻辑删除：0未删除 1已删除',
   `last_login_time` datetime NULL DEFAULT NULL COMMENT '最后登录时间',
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -346,6 +410,10 @@ CREATE TABLE `sys_user`  (
 ) ENGINE = InnoDB AUTO_INCREMENT = 2 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci ROW_FORMAT = Dynamic COMMENT = '用户表';
 
 -- 插入默认管理员用户
-INSERT INTO `sys_user` VALUES (1, 'A0001', 'admin', '$2a$10$7EqJtq98hPqEX7fNZaFWoO.m3W5f7hP1aY5xW5P1Qm1jJQeFJr2', '系统管理员', 'Admin', NULL, '男', '13800000000', 'admin@oa.com', NULL, '2026-07-19', 1, 3, 3, 1, NULL, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `sys_user` VALUES (1, 'A0001', 'admin', '$2a$10$A95mGHC9GOEiVkvrQKpLNOX2JVrZVwIBfCfsaHH1wghaI0S1l1Y7O', '系统管理员', 'Admin', NULL, '男', '13800000000', 'admin@oa.com', NULL, '2026-07-19', 1, 3, 3, 1, 0, NULL, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+
+-- 插入默认制度文档数据
+INSERT INTO `doc_document` VALUES (1, '考勤管理制度', '员工应在规定工作时间内完成签到和签退。迟到、早退、缺勤、加班按考勤规则自动计算，特殊情况可发起补卡或请假审批。', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
+INSERT INTO `doc_document` VALUES (2, '请假审批制度', '员工请假需提交请假类型、开始时间、结束时间、原因和附件。审批通过后，请假时间段不参与缺勤统计。', 1, '2026-07-19 20:54:06', '2026-07-19 20:54:06');
 
 SET FOREIGN_KEY_CHECKS = 1;

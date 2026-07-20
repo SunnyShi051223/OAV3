@@ -117,10 +117,7 @@ public class DepartmentServiceImpl implements IDepartmentService {
             return Result.error("该部门下存在用户，无法删除");
         }
 
-        dept.setDeleted(1);
-        dept.setUpdateTime(LocalDateTime.now());
-
-        int result = departmentMapper.updateById(dept);
+        int result = departmentMapper.softDeleteById(deptId);
         if (result > 0) {
             return Result.success("删除成功");
         }

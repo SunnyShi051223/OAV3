@@ -5,6 +5,7 @@ import com.oa.attendance.util.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
@@ -62,7 +63,8 @@ public class SecurityConfig {
                 .and()
                 // 配置权限
                 .authorizeHttpRequests(authz -> authz
-                        .antMatchers("/api/auth/**").permitAll() // 登录接口不需要权限
+                        .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .antMatchers("/api/auth/login").permitAll() // 登录接口不需要权限
                         .antMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Swagger接口
                         .anyRequest().authenticated() // 其他接口都需要认证
                 )

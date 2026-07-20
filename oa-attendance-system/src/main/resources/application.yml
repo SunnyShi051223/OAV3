@@ -13,13 +13,18 @@ spring:
     nacos:
       config:
         server-addr: localhost:8848
+        file-extension: yaml
+        group: DEFAULT_GROUP
+        refresh-enabled: true
       discovery:
         server-addr: localhost:8848
+        group: DEFAULT_GROUP
+        namespace:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/oa_system?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
     username: root
-    password: 123456
+    password: shisannian1223
   redis:
     host: localhost
     port: 6379
@@ -32,6 +37,14 @@ spring:
         max-wait: -1ms
         max-idle: 8
         min-idle: 0
+  elasticsearch:
+    uris: http://localhost:9200
+    connection-timeout: 3s
+    socket-timeout: 5s
+  data:
+    elasticsearch:
+      repositories:
+        enabled: true
 
 # MyBatis配置
 mybatis-plus:
@@ -57,3 +70,4 @@ logging:
   level:
     com.oa.attendance.mapper: debug
     org.springframework.security: debug
+    org.springframework.data.elasticsearch: info

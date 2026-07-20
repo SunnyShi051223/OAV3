@@ -7,6 +7,8 @@ import com.oa.attendance.service.IUserService;
 import com.oa.attendance.vo.UserListVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -80,12 +82,14 @@ public class UserController {
     }
 
     /**
-     * 修改密码
+     * 修改密码（仅允许修改自己的密码）
      */
     @PutMapping("/{userId}/password")
     public Result<?> changePassword(@PathVariable Long userId,
                                    @RequestParam String oldPassword,
                                    @RequestParam String newPassword) {
-        return userService.changePassword(userId, oldPassword, newPassword);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = auth.getName();
+        return userService.changePassword(userId, oldPassword, newPassword, currentUsername);
     }
 }

@@ -84,11 +84,7 @@ public class MenuServiceImpl implements IMenuService {
             return Result.error("该菜单存在子菜单，无法删除");
         }
 
-        // 软删除：设置deleted字段为1
-        menu.setDeleted(1);
-        menu.setUpdateTime(LocalDateTime.now());
-
-        int result = menuMapper.updateById(menu);
+        int result = menuMapper.softDeleteById(menuId);
         if (result > 0) {
             return Result.success("删除成功");
         }

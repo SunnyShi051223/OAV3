@@ -123,11 +123,7 @@ public class PositionServiceImpl implements IPositionService {
             return Result.error("该职位下存在用户，无法删除");
         }
 
-        // 软删除：设置deleted字段
-        position.setDeleted(1);
-        position.setUpdateTime(LocalDateTime.now());
-
-        int result = positionMapper.updateById(position);
+        int result = positionMapper.softDeleteById(positionId);
         if (result > 0) {
             return Result.success("删除成功");
         }

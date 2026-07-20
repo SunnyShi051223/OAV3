@@ -5,17 +5,24 @@ import com.oa.attendance.dto.UserCreateDTO;
 import com.oa.attendance.dto.UserUpdateDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.entity.SysDepartment;
+import com.oa.attendance.entity.SysPermission;
 import com.oa.attendance.entity.SysPosition;
 import com.oa.attendance.entity.SysRole;
 import com.oa.attendance.entity.SysUser;
 import com.oa.attendance.exception.BusinessException;
 import com.oa.attendance.mapper.SysDepartmentMapper;
+import com.oa.attendance.mapper.SysPermissionMapper;
 import com.oa.attendance.mapper.SysPositionMapper;
 import com.oa.attendance.mapper.SysRoleMapper;
 import com.oa.attendance.mapper.SysUserMapper;
 import com.oa.attendance.service.IUserService;
+import com.oa.attendance.service.TokenBlacklistService;
 import com.oa.attendance.util.JwtUtil;
+import com.oa.attendance.vo.AuthUserVO;
+import com.oa.attendance.vo.LoginVO;
 import com.oa.attendance.vo.UserListVO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -36,6 +43,8 @@ import java.util.stream.Collectors;
 @Service
 public class UserServiceImpl implements IUserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
+
     @Autowired
     private SysUserMapper sysUserMapper;
 
@@ -49,6 +58,9 @@ public class UserServiceImpl implements IUserService {
     private SysRoleMapper sysRoleMapper;
 
     @Autowired
+    private SysPermissionMapper sysPermissionMapper;
+
+    @Autowired
     private AuthenticationManager authenticationManager;
 
     @Autowired
@@ -56,6 +68,9 @@ public class UserServiceImpl implements IUserService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
 
     @Override
     public Result<?> login(String username, String password) {
@@ -77,14 +92,29 @@ public class UserServiceImpl implements IUserService {
                 return Result.error("用户不存在");
             }
 
+            user.setLastLoginTime(LocalDateTime.now());
+            sysUserMapper.updateById(user);
+
             // 生成JWT Token
             String token = jwtUtil.generateToken(user.getUserId());
+            LoginVO loginVO = new LoginVO();
+            loginVO.setToken(token);
+            loginVO.setExpiresIn(jwtUtil.getRemainingSeconds(token));
+            loginVO.setUser(buildAuthUser(user));
 
             // 返回用户信息和Token
-            return Result.success("登录成功", token);
+            return Result.success("登录成功", loginVO);
         } catch (Exception e) {
+            log.error("登录失败: username={}, error={}", username, e.getMessage());
             return Result.error("用户名或密码错误");
         }
+    }
+
+    @Override
+    public Result<?> logout(String token) {
+        tokenBlacklistService.blacklist(token);
+        SecurityContextHolder.clearContext();
+        return Result.success("退出成功");
     }
 
     @Override
@@ -104,39 +134,47 @@ public class UserServiceImpl implements IUserService {
             SysUser user = sysUserMapper.selectOne(wrapper);
 
             if (user != null) {
-                // 查询关联信息
-                UserListVO userVo = new UserListVO();
-                BeanUtils.copyProperties(user, userVo);
-
-                // 设置部门名称
-                if (user.getDeptId() != null) {
-                    SysDepartment dept = sysDepartmentMapper.selectById(user.getDeptId());
-                    if (dept != null) {
-                        userVo.setDeptName(dept.getDeptName());
-                    }
-                }
-
-                // 设置职位名称
-                if (user.getPositionId() != null) {
-                    SysPosition position = sysPositionMapper.selectById(user.getPositionId());
-                    if (position != null) {
-                        userVo.setPositionName(position.getPositionName());
-                    }
-                }
-
-                // 设置角色名称
-                if (user.getRoleId() != null) {
-                    SysRole role = sysRoleMapper.selectById(user.getRoleId());
-                    if (role != null) {
-                        userVo.setRoleName(role.getRoleName());
-                    }
-                }
-
-                return Result.success("获取成功", userVo);
+                return Result.success("获取成功", buildAuthUser(user));
             }
         }
 
         return Result.error("未登录或登录已失效");
+    }
+
+    private AuthUserVO buildAuthUser(SysUser user) {
+        AuthUserVO authUserVO = new AuthUserVO();
+        BeanUtils.copyProperties(user, authUserVO);
+
+        if (user.getDeptId() != null) {
+            SysDepartment dept = sysDepartmentMapper.selectById(user.getDeptId());
+            if (dept != null) {
+                authUserVO.setDeptName(dept.getDeptName());
+            }
+        }
+
+        if (user.getPositionId() != null) {
+            SysPosition position = sysPositionMapper.selectById(user.getPositionId());
+            if (position != null) {
+                authUserVO.setPositionName(position.getPositionName());
+            }
+        }
+
+        if (user.getRoleId() != null) {
+            SysRole role = sysRoleMapper.selectById(user.getRoleId());
+            if (role != null) {
+                authUserVO.setRoleName(role.getRoleName());
+                authUserVO.setRoleCode(role.getRoleCode());
+            }
+        }
+
+        List<SysPermission> permissions = sysPermissionMapper.selectPermissionsByUserId(user.getUserId());
+        if (permissions != null) {
+            authUserVO.setPermissions(permissions.stream()
+                    .map(SysPermission::getPermissionCode)
+                    .collect(Collectors.toList()));
+        }
+
+        return authUserVO;
     }
 
     @Override
@@ -244,10 +282,7 @@ public class UserServiceImpl implements IUserService {
             throw new BusinessException("用户不存在");
         }
 
-        user.setDeleted(1);
-        user.setUpdateTime(LocalDateTime.now());
-
-        int result = sysUserMapper.updateById(user);
+        int result = sysUserMapper.softDeleteById(userId);
         if (result > 0) {
             return Result.success("删除成功");
         }
@@ -393,11 +428,16 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    public Result<?> changePassword(Long userId, String oldPassword, String newPassword) {
+    public Result<?> changePassword(Long userId, String oldPassword, String newPassword, String currentUsername) {
         // 查询用户
         SysUser user = sysUserMapper.selectById(userId);
         if (user == null) {
             return Result.error("用户不存在");
+        }
+
+        // 只能修改自己的密码
+        if (!user.getUsername().equals(currentUsername)) {
+            return Result.error("只能修改自己的密码");
         }
 
         // 验证旧密码

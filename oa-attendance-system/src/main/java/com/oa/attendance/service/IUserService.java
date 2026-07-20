@@ -18,6 +18,11 @@ public interface IUserService {
     Result<?> login(String username, String password);
 
     /**
+     * 用户退出登录
+     */
+    Result<?> logout(String token);
+
+    /**
      * 获取当前用户信息
      */
     Result<?> getCurrentUserInfo();
@@ -60,5 +65,5 @@ public interface IUserService {
     /**
      * 修改密码
      */
-    Result<?> changePassword(Long userId, String oldPassword, String newPassword);
+    Result<?> changePassword(Long userId, String oldPassword, String newPassword, String currentUsername);
 }
