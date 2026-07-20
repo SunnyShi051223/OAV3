@@ -21,8 +21,12 @@ function crudApi(path) {
 export const userApi = {
   ...crudApi('/users'),
   byDepartment: (deptId) => request.get(`/users/dept/${deptId}`),
+  updateProfile: (data) => request.put('/users/profile', data),
   changePassword(userId, oldPassword, newPassword) {
     return request.put(`/users/${userId}/password`, null, { params: { oldPassword, newPassword } })
+  },
+  resetPassword(userId, newPassword = '123456') {
+    return request.put(`/users/${userId}/reset-password`, null, { params: { newPassword } })
   },
 }
 
