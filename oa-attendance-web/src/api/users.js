@@ -19,3 +19,7 @@ export function deleteUser(id) {
 export function updateProfile(payload) {
   return http.put('/users/profile', payload);
 }
+
+export function resetUserPassword(id, newPassword = '123456') {
+  return http.put(`/users/${id}/reset-password`, null, { params: { newPassword } });
+}

@@ -72,4 +72,6 @@ public interface IUserService {
      * 修改密码
      */
     Result<?> changePassword(Long userId, String oldPassword, String newPassword, String currentUsername);
+
+    Result<?> resetPassword(Long userId, String newPassword);
 }

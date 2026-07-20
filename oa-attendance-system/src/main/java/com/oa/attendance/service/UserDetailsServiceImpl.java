@@ -45,11 +45,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             // 不是数字，按用户名/工号查询
         }
 
-        SysUser sysUser;
+        SysUser sysUser = null;
         if (userId != null) {
             // 按ID查询用户
             sysUser = sysUserMapper.selectById(userId);
-        } else {
+        }
+        if (sysUser == null) {
             // 按用户名/工号查询用户
             QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
             wrapper.eq("username", username).or().eq("employee_no", username);

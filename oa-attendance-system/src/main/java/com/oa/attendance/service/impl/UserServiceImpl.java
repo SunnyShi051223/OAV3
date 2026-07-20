@@ -542,4 +542,22 @@ public class UserServiceImpl implements IUserService {
         }
         return Result.error("密码修改失败");
     }
+
+    @Override
+    public Result<?> resetPassword(Long userId, String newPassword) {
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            return Result.error("新密码不能为空");
+        }
+        SysUser user = sysUserMapper.selectById(userId);
+        if (user == null || Integer.valueOf(1).equals(user.getDeleted())) {
+            return Result.error("用户不存在");
+        }
+        if (!dataScopeService.canAccessDepartment(user.getDeptId())) {
+            return Result.error("只能重置权限范围内用户的密码");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword.trim()));
+        user.setUpdateTime(LocalDateTime.now());
+        int result = sysUserMapper.updateById(user);
+        return result > 0 ? Result.success("密码已重置") : Result.error("密码重置失败");
+    }
 }

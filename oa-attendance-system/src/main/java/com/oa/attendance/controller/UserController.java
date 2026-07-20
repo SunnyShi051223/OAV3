@@ -102,4 +102,11 @@ public class UserController {
         String currentUsername = auth.getName();
         return userService.changePassword(userId, oldPassword, newPassword, currentUsername);
     }
+
+    @PutMapping("/{userId}/reset-password")
+    @PreAuthorize("hasAuthority('user:update')")
+    public Result<?> resetPassword(@PathVariable Long userId,
+                                   @RequestParam(defaultValue = "123456") String newPassword) {
+        return userService.resetPassword(userId, newPassword);
+    }
 }

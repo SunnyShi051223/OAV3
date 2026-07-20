@@ -57,6 +57,11 @@ select {
   background: #fff;
 }
 
+input[readonly] {
+  color: #53655e;
+  background: #f6faf8;
+}
+
 textarea {
   min-height: 140px;
   resize: vertical;
@@ -99,9 +104,20 @@ p {
 }
 
 .form label,
-.profile-form label {
+.profile-form label,
+.crud-form label {
   display: grid;
   gap: 8px;
+}
+
+.crud-form label {
+  color: #53655e;
+  font-size: 13px;
+}
+
+.crud-form small {
+  color: #65756f;
+  line-height: 1.5;
 }
 
 .crud-form {
@@ -320,6 +336,183 @@ main {
   font-style: normal;
 }
 
+.attendance-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.attendance-form.compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.attendance-form label {
+  display: grid;
+  gap: 6px;
+  color: #53655e;
+  font-size: 13px;
+}
+
+.attendance-form small {
+  color: #65756f;
+  line-height: 1.5;
+}
+
+.check-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+  min-height: 44px;
+  color: #172026 !important;
+  font-size: 14px !important;
+}
+
+.check-row input {
+  width: auto;
+}
+
+.form-span {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.inline-grid,
+.location-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.inline-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+.location-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.8fr) auto;
+}
+
+.table-panel,
+.attendance-toolbar {
+  margin-top: 18px;
+}
+
+.month-picker {
+  display: grid;
+  grid-template-columns: 180px auto;
+  gap: 10px;
+}
+
+.attendance-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.9fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.rule-summary,
+.today-summary {
+  min-height: 220px;
+}
+
+.rule-select {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  color: #53655e;
+  font-size: 13px;
+}
+
+.rule-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.rule-grid div,
+.timeline div {
+  border: 1px solid #e2e9e6;
+  border-radius: 6px;
+  padding: 14px;
+  background: #f8fbfa;
+}
+
+.rule-grid span,
+.timeline span {
+  display: block;
+  margin-bottom: 8px;
+  color: #65756f;
+  font-size: 13px;
+}
+
+.rule-grid strong,
+.timeline strong {
+  display: block;
+  color: #172026;
+  font-size: 16px;
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.timeline em {
+  display: inline-block;
+  margin-top: 8px;
+  color: #65756f;
+  font-style: normal;
+  font-size: 13px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-normal {
+  color: #146c5a;
+  background: #dceee8;
+}
+
+.status-overtime {
+  color: #174ea6;
+  background: #e8f0fe;
+}
+
+.status-warning {
+  color: #ad3d18;
+  background: #fff0db;
+}
+
+.status-leave {
+  color: #6f4bb2;
+  background: #eee8ff;
+}
+
+.status-absent {
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.status-pending {
+  color: #53655e;
+  background: #edf2f0;
+}
+
 .error {
   color: #b42318;
 }
@@ -355,7 +548,12 @@ main {
 
   .crud-form,
   .profile-form,
-  .checkbox-list {
+  .checkbox-list,
+  .attendance-form,
+  .attendance-form.compact,
+  .inline-grid,
+  .location-grid,
+  .month-picker {
     grid-template-columns: 1fr;
   }
 
@@ -363,5 +561,10 @@ main {
   .search-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .attendance-hero,
+  .rule-grid {
+    grid-template-columns: 1fr;
   }
 }

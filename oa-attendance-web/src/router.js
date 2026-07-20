@@ -7,6 +7,9 @@ import DepartmentManageView from './views/DepartmentManageView.vue';
 import PositionManageView from './views/PositionManageView.vue';
 import RoleManageView from './views/RoleManageView.vue';
 import MenuManageView from './views/MenuManageView.vue';
+import AttendanceRuleView from './views/AttendanceRuleView.vue';
+import MyAttendanceView from './views/MyAttendanceView.vue';
+import AttendanceStatsView from './views/AttendanceStatsView.vue';
 import { authStore } from './store/auth';
 
 const router = createRouter({
@@ -22,6 +25,10 @@ const router = createRouter({
     { path: '/system/position', component: PositionManageView },
     { path: '/system/role', component: RoleManageView },
     { path: '/system/menu', component: MenuManageView },
+    { path: '/attendance', redirect: () => (authStore.hasPermission('attendance:rule:query') ? '/attendance/rules' : '/attendance/my') },
+    { path: '/attendance/rules', component: AttendanceRuleView },
+    { path: '/attendance/my', component: MyAttendanceView },
+    { path: '/attendance/stats', component: AttendanceStatsView },
     { path: '/organization', redirect: '/organization/users' },
     { path: '/organization/users', component: UserManageView },
     { path: '/organization/departments', component: DepartmentManageView },
