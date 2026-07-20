@@ -117,7 +117,10 @@ public class DepartmentServiceImpl implements IDepartmentService {
             return Result.error("该部门下存在用户，无法删除");
         }
 
-        int result = departmentMapper.softDeleteById(deptId);
+        dept.setDeleted(1);
+        dept.setUpdateTime(LocalDateTime.now());
+
+        int result = departmentMapper.updateById(dept);
         if (result > 0) {
             return Result.success("删除成功");
         }
@@ -132,7 +135,7 @@ public class DepartmentServiceImpl implements IDepartmentService {
             BeanUtils.copyProperties(dept, vo);
 
             // 如果有父级部门，查询父级部门名称
-            if (dept.getParentId() != null && dept.getParentId() != 0) {
+            if (dept.getParentId() != null && dept.getParentId() != 0L) {
                 SysDepartment parent = departmentMapper.selectById(dept.getParentId());
                 if (parent != null) {
                     vo.setParentDeptName(parent.getDeptName());
@@ -156,7 +159,7 @@ public class DepartmentServiceImpl implements IDepartmentService {
             BeanUtils.copyProperties(dept, vo);
 
             // 查询父级部门名称
-            if (dept.getParentId() != null && dept.getParentId() != 0) {
+            if (dept.getParentId() != null && dept.getParentId() != 0L) {
                 SysDepartment parent = departmentMapper.selectById(dept.getParentId());
                 if (parent != null) {
                     vo.setParentDeptName(parent.getDeptName());
@@ -215,7 +218,7 @@ public class DepartmentServiceImpl implements IDepartmentService {
         for (SysDepartment dept : departments) {
             DepartmentTreeNodeVO currentNode = nodeMap.get(dept.getDeptId());
 
-            if (dept.getParentId() == null || dept.getParentId() == 0) {
+            if (dept.getParentId() == null || dept.getParentId() == 0L) {
                 // 根节点
                 rootNodes.add(currentNode);
             } else {
