@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { applicationApi, attendanceApi, authApi, chatApi, colleagueApi, departmentApi, menuApi, positionApi, userApi } from './api/oa'
 import AttendanceRuleManagement from './components/AttendanceRuleManagement.vue'
 import AttendanceStats from './components/AttendanceStats.vue'
@@ -26,7 +26,11 @@ const moduleKeyword = ref('')
 const employeeDeptFilter = ref('')
 const employeeStatusFilter = ref('')
 const employeeGenderFilter = ref('')
+const employeeSort = ref('default')
+const employeeCurrentPage = ref(1)
+const employeePageSize = 10
 const departmentView = ref('tree')
+const expandedDepartmentIds = ref(new Set())
 const loading = ref(false)
 const errorMessage = ref('')
 const records = ref([])
@@ -112,6 +116,32 @@ const filteredRecords = computed(() => {
     return true
   })
 })
+const employeeTotalPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / employeePageSize)))
+const sortedEmployeeRecords = computed(() => {
+  const result = [...filteredRecords.value]
+  const textCompare = (left, right) => String(left || '').localeCompare(String(right || ''), 'zh-CN', { numeric: true })
+  const sorters = {
+    employeeNoAsc: (left, right) => textCompare(left.employeeNo, right.employeeNo),
+    employeeNoDesc: (left, right) => textCompare(right.employeeNo, left.employeeNo),
+    nameAsc: (left, right) => textCompare(left.realName, right.realName),
+    hireDateDesc: (left, right) => textCompare(right.hireDate, left.hireDate),
+    hireDateAsc: (left, right) => textCompare(left.hireDate, right.hireDate),
+  }
+  const sorter = sorters[employeeSort.value]
+  return sorter ? result.sort(sorter) : result
+})
+const paginatedEmployeeRecords = computed(() => {
+  const start = (employeeCurrentPage.value - 1) * employeePageSize
+  return sortedEmployeeRecords.value.slice(start, start + employeePageSize)
+})
+watch([moduleKeyword, employeeDeptFilter, employeeStatusFilter, employeeGenderFilter, employeeSort], () => {
+  employeeCurrentPage.value = 1
+})
+watch(filteredRecords, () => {
+  if (activeSection.value === '员工管理' && employeeCurrentPage.value > employeeTotalPages.value) {
+    employeeCurrentPage.value = employeeTotalPages.value
+  }
+})
 const departmentTreeRows = computed(() => {
   const source = filteredRecords.value
   const children = new Map()
@@ -122,13 +152,23 @@ const departmentTreeRows = computed(() => {
   })
   const rows = []
   const visit = (parentId, depth) => (children.get(Number(parentId)) || []).forEach((item) => {
-    rows.push({ ...item, depth, childCount: (children.get(Number(item.deptId)) || []).length })
-    visit(item.deptId, depth + 1)
+    const childCount = (children.get(Number(item.deptId)) || []).length
+    const expanded = expandedDepartmentIds.value.has(Number(item.deptId))
+    rows.push({ ...item, depth, childCount, expanded })
+    if (expanded) visit(item.deptId, depth + 1)
   })
   visit(0, 0)
   source.filter((item) => !rows.some((row) => Number(row.deptId) === Number(item.deptId))).forEach((item) => rows.push({ ...item, depth: 0, childCount: 0 }))
   return rows
 })
+
+function toggleDepartmentNode(deptId) {
+  const next = new Set(expandedDepartmentIds.value)
+  const id = Number(deptId)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedDepartmentIds.value = next
+}
 const displayName = computed(() => currentUser.value?.realName || currentUser.value?.username || 'admin')
 const avatarText = computed(() => displayName.value.slice(0, 1).toUpperCase())
 const filteredChatContacts = computed(() => {
@@ -306,6 +346,8 @@ async function openApplication(title) {
   employeeDeptFilter.value = ''
   employeeStatusFilter.value = ''
   employeeGenderFilter.value = ''
+  employeeSort.value = 'default'
+  employeeCurrentPage.value = 1
   errorMessage.value = ''
   if (managedSections.includes(title)) await loadSection()
   if (title === '消息') await loadChatContacts()
@@ -337,6 +379,7 @@ async function loadSection() {
       const [result, userResult] = await Promise.all(requests)
       records.value = result.data || []
       departments.value = records.value
+      expandedDepartmentIds.value = new Set(records.value.map((item) => Number(item.deptId)))
       users.value = userResult?.data || []
     } else if (activeSection.value === '职位管理') {
       const [positionResult, departmentResult] = await Promise.all([
@@ -1048,6 +1091,14 @@ function departmentName(id) {
             <select v-model="employeeDeptFilter"><option value="">全部部门</option><option v-for="item in departments" :key="item.deptId" :value="item.deptId">{{ item.deptName }}</option></select>
             <select v-model="employeeStatusFilter"><option value="">全部状态</option><option value="1">在职</option><option value="0">离职</option></select>
             <select v-model="employeeGenderFilter"><option value="">全部性别</option><option value="男">男</option><option value="女">女</option></select>
+            <select v-model="employeeSort" aria-label="员工排序">
+              <option value="default">默认排序</option>
+              <option value="employeeNoAsc">工号：升序</option>
+              <option value="employeeNoDesc">工号：降序</option>
+              <option value="nameAsc">姓名：A–Z</option>
+              <option value="hireDateDesc">入职日期：最新优先</option>
+              <option value="hireDateAsc">入职日期：最早优先</option>
+            </select>
           </template>
           <div v-if="activeSection === '部门管理'" class="department-view-switch"><button :class="{ active: departmentView === 'tree' }" @click="departmentView = 'tree'">组织树</button><button :class="{ active: departmentView === 'list' }" @click="departmentView = 'list'">列表</button></div>
           <button class="refresh-button" :disabled="loading" title="刷新数据" @click="loadSection"><span>↻</span>{{ loading ? '刷新中' : '刷新' }}</button>
@@ -1057,15 +1108,23 @@ function departmentName(id) {
           <div v-if="loading" class="empty-state">正在加载数据…</div>
           <table v-else-if="activeSection === '员工管理'">
             <thead><tr><th>工号</th><th>姓名</th><th>性别</th><th>部门</th><th>职位</th><th>手机号</th><th>入职日期</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody><tr v-for="item in filteredRecords" :key="item.userId"><td>{{ item.employeeNo }}</td><td class="name-cell"><span class="table-avatar">{{ item.realName?.slice(0,1) }}</span>{{ item.realName }}</td><td>{{ item.gender || '—' }}</td><td>{{ item.deptName || '—' }}</td><td>{{ item.positionName || '—' }}</td><td>{{ item.phone || '—' }}</td><td>{{ item.hireDate || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '在职' : '离职' }}</span></td><td class="actions-cell"><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canEditItem(item) && Number(item.userId) !== Number(currentUser?.userId)" class="text-action" @click="resetUserPassword(item)">重置密码</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
+            <tbody><tr v-for="item in paginatedEmployeeRecords" :key="item.userId"><td>{{ item.employeeNo }}</td><td class="name-cell"><span class="table-avatar">{{ item.realName?.slice(0,1) }}</span>{{ item.realName }}</td><td>{{ item.gender || '—' }}</td><td>{{ item.deptName || '—' }}</td><td>{{ item.positionName || '—' }}</td><td>{{ item.phone || '—' }}</td><td>{{ item.hireDate || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '在职' : '离职' }}</span></td><td class="actions-cell"><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canEditItem(item) && Number(item.userId) !== Number(currentUser?.userId)" class="text-action" @click="resetUserPassword(item)">重置密码</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
           </table>
+          <div v-if="!loading && activeSection === '员工管理' && filteredRecords.length" class="table-pagination">
+            <span>第 {{ employeeCurrentPage }} 页 / 共 {{ filteredRecords.length }} 条</span>
+            <div class="pagination-actions">
+              <button :disabled="employeeCurrentPage === 1" aria-label="上一页" @click="employeeCurrentPage--">‹</button>
+              <strong>{{ employeeCurrentPage }}</strong>
+              <button :disabled="employeeCurrentPage === employeeTotalPages" aria-label="下一页" @click="employeeCurrentPage++">›</button>
+            </div>
+          </div>
           <table v-else-if="activeSection === '部门管理' && departmentView === 'list'">
             <thead><tr><th>部门编码</th><th>部门名称</th><th>上级部门</th><th>负责人</th><th>说明</th><th>状态</th><th>操作</th></tr></thead>
             <tbody><tr v-for="item in filteredRecords" :key="item.deptId"><td>{{ item.deptCode }}</td><td class="name-cell">{{ item.deptName }}</td><td>{{ item.parentDeptName || '—' }}</td><td>{{ item.leaderName || '—' }}</td><td>{{ item.description || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '启用' : '禁用' }}</span></td><td><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
           </table>
           <table v-else-if="activeSection === '部门管理'" class="department-tree-table">
             <thead><tr><th>组织架构</th><th>部门编码</th><th>负责人</th><th>下级部门</th><th>说明</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody><tr v-for="item in departmentTreeRows" :key="item.deptId"><td class="name-cell"><span class="tree-indent" :style="{ width: `${item.depth * 28}px` }"></span><span class="tree-branch">{{ item.depth ? '└' : '◆' }}</span><span class="department-tree-icon">部</span>{{ item.deptName }}</td><td>{{ item.deptCode }}</td><td>{{ item.leaderName || '—' }}</td><td>{{ item.childCount ? `${item.childCount} 个` : '—' }}</td><td>{{ item.description || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '启用' : '禁用' }}</span></td><td><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
+            <tbody><tr v-for="item in departmentTreeRows" :key="item.deptId"><td class="name-cell"><span class="tree-indent" :style="{ width: `${item.depth * 28}px` }"></span><button v-if="item.childCount" class="tree-toggle" :class="{ expanded: item.expanded }" :aria-label="item.expanded ? `收起${item.deptName}` : `展开${item.deptName}`" @click="toggleDepartmentNode(item.deptId)">›</button><span v-else class="tree-toggle-placeholder"></span><span class="department-tree-icon">部</span>{{ item.deptName }}</td><td>{{ item.deptCode }}</td><td>{{ item.leaderName || '—' }}</td><td>{{ item.childCount ? `${item.childCount} 个` : '—' }}</td><td>{{ item.description || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '启用' : '禁用' }}</span></td><td><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
           </table>
           <table v-else>
             <thead><tr><th>职位名称</th><th>所属部门</th><th>职位等级</th><th>职位说明</th><th>操作</th></tr></thead>

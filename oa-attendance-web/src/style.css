@@ -301,9 +301,19 @@ button { color: inherit; }
 .text-action.danger { color: #d83931; }
 .actions-cell { min-width: 156px; }
 .no-action { color: #b7bbc1; }
+.table-pagination { min-width: 900px; display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-top: 1px solid #f0f1f3; color: #646a73; font-size: 12px; }
+.pagination-actions { display: flex; align-items: center; gap: 8px; }
+.pagination-actions button, .pagination-actions strong { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; font-size: 13px; }
+.pagination-actions button { border: 1px solid #dfe3e9; color: #50555d; background: #fff; cursor: pointer; transition: .15s ease; }
+.pagination-actions button:hover:not(:disabled) { border-color: #9db7ff; color: #3370ff; background: #f4f7ff; }
+.pagination-actions button:disabled { color: #c5c9cf; background: #f7f8fa; cursor: not-allowed; }
+.pagination-actions strong { color: #fff; background: #3370ff; font-weight: 500; }
 .department-tree-table { min-width: 1000px !important; }
 .tree-indent { display: inline-block; flex: 0 0 auto; }
-.tree-branch { display: inline-block; width: 20px; color: #aeb7c5; font-weight: 400; }
+.tree-toggle, .tree-toggle-placeholder { width: 22px; height: 22px; display: inline-grid; flex: 0 0 22px; place-items: center; margin-right: 4px; }
+.tree-toggle { padding: 0; border: 0; border-radius: 6px; color: #7b8492; background: transparent; font-size: 20px; line-height: 1; cursor: pointer; transition: transform .16s ease, color .16s ease, background .16s ease; }
+.tree-toggle:hover { color: #3370ff; background: #edf3ff; }
+.tree-toggle.expanded { transform: rotate(90deg); }
 .department-tree-icon { width: 28px; height: 28px; display: inline-grid; place-items: center; margin-right: 9px; border-radius: 8px; color: #3370ff; background: #edf3ff; font-size: 10px; }
 
 .attendance-page { width: min(1500px, 100%); margin: 0 auto; padding: 36px 42px 60px; }
