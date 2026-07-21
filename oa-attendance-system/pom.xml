@@ -30,6 +30,8 @@
         <spring-cloud.version>2021.0.8</spring-cloud.version>
 
         <spring-cloud-alibaba.version>2021.0.5.0</spring-cloud-alibaba.version>
+
+        <flowable.version>6.8.0</flowable.version>
     </properties>
 
     <!-- Spring Cloud / Alibaba 版本管理 -->
@@ -73,6 +75,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Flowable workflow engine -->
+        <dependency>
+            <groupId>org.flowable</groupId>
+            <artifactId>flowable-spring-boot-starter-process</artifactId>
+            <version>${flowable.version}</version>
         </dependency>
 
         <!-- MyBatis Plus -->

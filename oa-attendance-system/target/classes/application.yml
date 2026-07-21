@@ -25,6 +25,19 @@ spring:
     nacos:
       config:
         enabled: false
+      discovery:
+        server-addr: 127.0.0.1:8848
+        fail-fast: false
+
+flowable:
+  database-schema-update: false
+  async-executor-activate: false
+  history-level: audit
+  process-definition-location-prefix: classpath*:/processes/
+  eventregistry:
+    enabled: false
+  idm:
+    enabled: false
 
 # MyBatis配置
 mybatis-plus:

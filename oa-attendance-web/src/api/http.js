@@ -14,7 +14,13 @@ http.interceptors.request.use((config) => {
 });
 
 http.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    const result = response.data;
+    if (result && typeof result.code === 'number' && result.code !== 200) {
+      return Promise.reject(new Error(result.msg || '请求失败'));
+    }
+    return result;
+  },
   (error) => {
     const message = error.response?.data?.msg || error.message || '请求失败';
     if (error.response?.status === 401) {

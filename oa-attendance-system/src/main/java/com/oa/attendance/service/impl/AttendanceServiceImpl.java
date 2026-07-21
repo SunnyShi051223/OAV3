@@ -21,6 +21,7 @@ import com.oa.attendance.mapper.AttRuleWifiMapper;
 import com.oa.attendance.mapper.SysDepartmentMapper;
 import com.oa.attendance.mapper.SysUserMapper;
 import com.oa.attendance.service.DataScopeService;
+import com.oa.attendance.service.IAttendanceApprovalSyncService;
 import com.oa.attendance.service.IAttendanceService;
 import com.oa.attendance.vo.AttendanceMonthVO;
 import com.oa.attendance.vo.AttendanceRecordVO;
@@ -73,6 +74,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
 
     @Autowired
     private AttDailySummaryMapper summaryMapper;
+
+    @Autowired
+    private IAttendanceApprovalSyncService attendanceApprovalSyncService;
 
     @Autowired
     private SysDepartmentMapper departmentMapper;
@@ -503,36 +507,7 @@ public class AttendanceServiceImpl implements IAttendanceService {
     }
 
     private void upsertSummary(AttRecord record, AttRule rule) {
-        QueryWrapper<AttDailySummary> wrapper = new QueryWrapper<>();
-        wrapper.eq("user_id", record.getUserId())
-                .eq("attendance_date", record.getAttendanceDate())
-                .eq("rule_id", record.getRuleId());
-        AttDailySummary summary = summaryMapper.selectOne(wrapper);
-        if (summary == null) {
-            summary = new AttDailySummary();
-            summary.setCreateTime(LocalDateTime.now());
-        }
-        summary.setUserId(record.getUserId());
-        summary.setDeptId(record.getDeptId());
-        summary.setAttendanceDate(record.getAttendanceDate());
-        summary.setRuleId(record.getRuleId());
-        summary.setRecordId(record.getRecordId());
-        summary.setAttendanceStatus(record.getAttendanceStatus());
-        summary.setWorkMinutes(defaultInt(record.getWorkMinutes(), 0));
-        summary.setLateMinutes(calcLateMinutes(record, rule));
-        summary.setEarlyMinutes(calcEarlyMinutes(record, rule));
-        summary.setOvertimeMinutes(defaultInt(record.getOvertimeMinutes(), 0));
-        summary.setLeaveMinutes(0);
-        summary.setIsLate(LATE.equals(record.getCheckInStatus()) ? 1 : 0);
-        summary.setIsAbsent(ABSENT.equals(record.getAttendanceStatus()) ? 1 : 0);
-        summary.setIsOvertime(OVERTIME.equals(record.getCheckOutStatus()) ? 1 : 0);
-        summary.setIsLeave("LEAVE".equals(record.getAttendanceStatus()) ? 1 : 0);
-        summary.setUpdateTime(LocalDateTime.now());
-        if (summary.getSummaryId() == null) {
-            summaryMapper.insert(summary);
-        } else {
-            summaryMapper.updateById(summary);
-        }
+        attendanceApprovalSyncService.refreshRecordAndSummary(record, rule);
     }
 
     private void writeLog(SysUser user, AttRule rule, AttRecord record, AttendanceCheckDTO dto, String checkType,
@@ -721,20 +696,6 @@ public class AttendanceServiceImpl implements IAttendanceService {
         }
         int day = date.getDayOfWeek().getValue();
         return workDays.contains(String.valueOf(day));
-    }
-
-    private int calcLateMinutes(AttRecord record, AttRule rule) {
-        if (record.getCheckInTime() == null || rule.getWorkStartTime() == null) {
-            return 0;
-        }
-        return (int) Math.max(0, Duration.between(LocalDateTime.of(record.getAttendanceDate(), rule.getWorkStartTime()), record.getCheckInTime()).toMinutes());
-    }
-
-    private int calcEarlyMinutes(AttRecord record, AttRule rule) {
-        if (record.getCheckOutTime() == null || rule.getWorkEndTime() == null) {
-            return 0;
-        }
-        return (int) Math.max(0, Duration.between(record.getCheckOutTime(), LocalDateTime.of(record.getAttendanceDate(), rule.getWorkEndTime())).toMinutes());
     }
 
     private int countExpectedAttendance(LocalDate startDate, LocalDate endDate, Long deptId) {

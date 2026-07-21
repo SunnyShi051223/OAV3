@@ -10,6 +10,11 @@ import MenuManageView from './views/MenuManageView.vue';
 import AttendanceRuleView from './views/AttendanceRuleView.vue';
 import MyAttendanceView from './views/MyAttendanceView.vue';
 import AttendanceStatsView from './views/AttendanceStatsView.vue';
+import MyApplicationsView from './views/MyApplicationsView.vue';
+import ApprovalTasksView from './views/ApprovalTasksView.vue';
+import ColleaguesView from './views/ColleaguesView.vue';
+import ChatView from './views/ChatView.vue';
+import AllApplicationsView from './views/AllApplicationsView.vue';
 import { authStore } from './store/auth';
 
 const router = createRouter({
@@ -19,6 +24,8 @@ const router = createRouter({
     { path: '/login', component: LoginView },
     { path: '/dashboard', component: DashboardView },
     { path: '/documents', component: DocumentsView },
+    { path: '/colleagues', component: ColleaguesView },
+    { path: '/chat', component: ChatView },
     { path: '/system', redirect: '/system/user' },
     { path: '/system/user', component: UserManageView },
     { path: '/system/dept', component: DepartmentManageView },
@@ -29,6 +36,10 @@ const router = createRouter({
     { path: '/attendance/rules', component: AttendanceRuleView },
     { path: '/attendance/my', component: MyAttendanceView },
     { path: '/attendance/stats', component: AttendanceStatsView },
+    { path: '/approvals', redirect: '/approvals/my' },
+    { path: '/approvals/my', component: MyApplicationsView },
+    { path: '/approvals/tasks', component: ApprovalTasksView },
+    { path: '/approvals/all', component: AllApplicationsView },
     { path: '/organization', redirect: '/organization/users' },
     { path: '/organization/users', component: UserManageView },
     { path: '/organization/departments', component: DepartmentManageView },
@@ -45,6 +56,12 @@ router.beforeEach((to) => {
   }
   if (to.path === '/login' && authStore.token) {
     return '/dashboard';
+  }
+  if (to.path === '/approvals/tasks' && !authStore.hasPermission('approval:handle')) {
+    return '/approvals/my';
+  }
+  if (to.path === '/approvals/all' && !authStore.hasPermission('approval:all')) {
+    return '/approvals/my';
   }
   return true;
 });
