@@ -10,4 +10,5 @@ public class DocumentSearchVO extends DocumentListVO {
 
     private String titleHighlight;
     private String contentHighlight;
+    private String tagsHighlight;
 }

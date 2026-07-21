@@ -8,6 +8,8 @@ import com.oa.attendance.vo.MenuListVO;
 import com.oa.attendance.vo.MenuTreeNodeVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -78,6 +80,15 @@ public class MenuController {
     @PreAuthorize("hasAuthority('menu:query')")
     public Result<List<MenuTreeNodeVO>> getTree() {
         return menuService.getTree();
+    }
+
+    /**
+     * 查询当前登录用户菜单树
+     */
+    @GetMapping("/current/tree")
+    public Result<List<MenuTreeNodeVO>> getCurrentUserTree() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return menuService.getCurrentUserTree(auth.getName());
     }
 
     /**

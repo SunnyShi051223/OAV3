@@ -146,11 +146,12 @@ public class DocumentServiceImpl implements IDocumentService {
 
         try {
             NativeSearchQuery query = new NativeSearchQueryBuilder()
-                    .withQuery(QueryBuilders.multiMatchQuery(keyword, "title", "content")
+                    .withQuery(QueryBuilders.multiMatchQuery(keyword, "title", "content", "tags")
                             .fuzziness(Fuzziness.AUTO))
                     .withHighlightFields(
                             new HighlightBuilder.Field("title").preTags("<em>").postTags("</em>"),
-                            new HighlightBuilder.Field("content").preTags("<em>").postTags("</em>"))
+                            new HighlightBuilder.Field("content").preTags("<em>").postTags("</em>"),
+                            new HighlightBuilder.Field("tags").preTags("<em>").postTags("</em>"))
                     .build();
 
             SearchHits<PolicyDocumentIndex> hits = elasticsearchRestTemplate.search(query, PolicyDocumentIndex.class);
@@ -196,6 +197,7 @@ public class DocumentServiceImpl implements IDocumentService {
         index.setDocId(document.getDocId());
         index.setTitle(document.getTitle());
         index.setContent(document.getContent());
+        index.setTags(document.getTags());
         index.setAuthorId(document.getAuthorId());
         index.setAuthorName(document.getAuthorName());
         index.setCreateTime(document.getCreateTime());
@@ -222,6 +224,10 @@ public class DocumentServiceImpl implements IDocumentService {
         List<String> contentHighlights = highlights.get("content");
         if (contentHighlights != null && !contentHighlights.isEmpty()) {
             vo.setContentHighlight(contentHighlights.get(0));
+        }
+        List<String> tagsHighlights = highlights.get("tags");
+        if (tagsHighlights != null && !tagsHighlights.isEmpty()) {
+            vo.setTagsHighlight(tagsHighlights.get(0));
         }
         return vo;
     }

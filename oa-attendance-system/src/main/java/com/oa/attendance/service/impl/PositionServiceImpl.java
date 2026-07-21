@@ -11,6 +11,7 @@ import com.oa.attendance.exception.BusinessException;
 import com.oa.attendance.mapper.SysDepartmentMapper;
 import com.oa.attendance.mapper.SysPositionMapper;
 import com.oa.attendance.mapper.SysUserMapper;
+import com.oa.attendance.service.DataScopeService;
 import com.oa.attendance.service.IPositionService;
 import com.oa.attendance.vo.PositionListVO;
 import org.springframework.beans.BeanUtils;
@@ -37,9 +38,16 @@ public class PositionServiceImpl implements IPositionService {
     @Autowired
     private SysUserMapper sysUserMapper;
 
+    @Autowired
+    private DataScopeService dataScopeService;
+
     @Override
     @Transactional
     public Result<?> create(PositionCreateDTO dto) {
+        if (!dataScopeService.canAccessDepartment(dto.getDeptId())) {
+            return Result.error("只能维护本部门职位");
+        }
+
         // 检查部门是否存在
         SysDepartment department = departmentMapper.selectById(dto.getDeptId());
         if (department == null) {
@@ -73,6 +81,10 @@ public class PositionServiceImpl implements IPositionService {
     @Transactional
     public Result<?> update(PositionUpdateDTO dto) {
         SysPosition existing = positionMapper.selectById(dto.getPositionId());
+        if (existing != null && (!dataScopeService.canAccessDepartment(existing.getDeptId())
+                || !dataScopeService.canAccessDepartment(dto.getDeptId()))) {
+            return Result.error("只能维护本部门职位");
+        }
         if (existing == null) {
             return Result.error("职位不存在");
         }
@@ -109,6 +121,9 @@ public class PositionServiceImpl implements IPositionService {
     @Transactional
     public Result<?> delete(Long positionId) {
         SysPosition position = positionMapper.selectById(positionId);
+        if (position != null && !dataScopeService.canAccessDepartment(position.getDeptId())) {
+            return Result.error("只能删除本部门职位");
+        }
 
         if (position == null) {
             throw new BusinessException("职位不存在");
@@ -134,6 +149,9 @@ public class PositionServiceImpl implements IPositionService {
     public Result<PositionListVO> getById(Long id) {
         SysPosition position = positionMapper.selectById(id);
         if (position != null && position.getDeleted() == 0) {
+            if (!dataScopeService.canAccessDepartment(position.getDeptId())) {
+                return Result.error("只能查看本部门职位");
+            }
             PositionListVO vo = new PositionListVO();
             BeanUtils.copyProperties(position, vo);
 
@@ -154,6 +172,9 @@ public class PositionServiceImpl implements IPositionService {
     public Result<List<PositionListVO>> listAll() {
         QueryWrapper<SysPosition> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
+        if (dataScopeService.hasDepartmentDataAccess()) {
+            wrapper.eq("dept_id", dataScopeService.getCurrentDeptId());
+        }
         wrapper.orderByDesc("create_time");
 
         List<SysPosition> positions = positionMapper.selectList(wrapper);
@@ -177,6 +198,10 @@ public class PositionServiceImpl implements IPositionService {
 
     @Override
     public Result<List<PositionListVO>> listByDeptId(Long deptId) {
+        if (!dataScopeService.canAccessDepartment(deptId)) {
+            return Result.error("只能查看本部门职位");
+        }
+
         SysDepartment department = departmentMapper.selectById(deptId);
         if (department == null) {
             return Result.error("部门不存在");

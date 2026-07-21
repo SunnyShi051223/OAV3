@@ -1,6 +1,7 @@
 package com.oa.attendance.service;
 
 import com.oa.attendance.dto.UserCreateDTO;
+import com.oa.attendance.dto.ProfileUpdateDTO;
 import com.oa.attendance.dto.UserUpdateDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.vo.UserListVO;
@@ -38,6 +39,11 @@ public interface IUserService {
     Result<?> update(UserUpdateDTO dto);
 
     /**
+     * 修改当前登录用户个人资料
+     */
+    Result<?> updateProfile(ProfileUpdateDTO dto, String currentUsername);
+
+    /**
      * 删除用户（软删除）
      */
     Result<?> delete(Long userId);
@@ -66,4 +72,6 @@ public interface IUserService {
      * 修改密码
      */
     Result<?> changePassword(Long userId, String oldPassword, String newPassword, String currentUsername);
+
+    Result<?> resetPassword(Long userId, String newPassword);
 }

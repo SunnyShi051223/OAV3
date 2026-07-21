@@ -1,6 +1,7 @@
 package com.oa.attendance.controller;
 
 import com.oa.attendance.dto.UserCreateDTO;
+import com.oa.attendance.dto.ProfileUpdateDTO;
 import com.oa.attendance.dto.UserUpdateDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.service.IUserService;
@@ -43,6 +44,15 @@ public class UserController {
     @PreAuthorize("hasAuthority('user:update')")
     public Result<?> update(@Valid @RequestBody UserUpdateDTO dto) {
         return userService.update(dto);
+    }
+
+    /**
+     * 修改当前登录用户个人资料
+     */
+    @PutMapping("/profile")
+    public Result<?> updateProfile(@RequestBody ProfileUpdateDTO dto) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return userService.updateProfile(dto, auth.getName());
     }
 
     /**
@@ -91,5 +101,12 @@ public class UserController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
         return userService.changePassword(userId, oldPassword, newPassword, currentUsername);
+    }
+
+    @PutMapping("/{userId}/reset-password")
+    @PreAuthorize("hasAuthority('user:update')")
+    public Result<?> resetPassword(@PathVariable Long userId,
+                                   @RequestParam(defaultValue = "123456") String newPassword) {
+        return userService.resetPassword(userId, newPassword);
     }
 }

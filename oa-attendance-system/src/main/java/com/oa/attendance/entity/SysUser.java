@@ -85,6 +85,9 @@ public class SysUser {
     private String roleName;             // 角色名称
 
     @TableField(exist = false)
+    private String roleCode;             // 角色代码
+
+    @TableField(exist = false)
     private String deptName;             // 部门名称
 
     @TableField(exist = false)

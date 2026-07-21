@@ -25,6 +25,9 @@ public class PolicyDocumentIndex {
     @Field(type = FieldType.Text)
     private String content;
 
+    @Field(type = FieldType.Text)
+    private String tags;
+
     @Field(type = FieldType.Long)
     private Long authorId;
 

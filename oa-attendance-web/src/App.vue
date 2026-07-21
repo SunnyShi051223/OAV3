@@ -1,6 +1,10 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { applicationApi, authApi, chatApi, colleagueApi, departmentApi, positionApi, userApi } from './api/oa'
+import { applicationApi, attendanceApi, authApi, chatApi, colleagueApi, departmentApi, menuApi, positionApi, userApi } from './api/oa'
+import AttendanceRuleManagement from './components/AttendanceRuleManagement.vue'
+import AttendanceStats from './components/AttendanceStats.vue'
+import DocumentCenter from './components/DocumentCenter.vue'
+import AccessManagement from './components/AccessManagement.vue'
 import messageIcon from './assets/sidebar/message.svg'
 import contactsIcon from './assets/sidebar/contacts.svg'
 import calendarIcon from './assets/sidebar/calendar.svg'
@@ -15,10 +19,14 @@ const loginLoading = ref(false)
 const loginError = ref('')
 const activeSection = ref('工作台')
 const searchKeyword = ref('')
+const favoriteAppTitles = ref([])
+const favoritesLoaded = ref(false)
+const manageAppsDialog = ref({ visible: false, selected: [] })
 const moduleKeyword = ref('')
 const employeeDeptFilter = ref('')
 const employeeStatusFilter = ref('')
 const employeeGenderFilter = ref('')
+const departmentView = ref('tree')
 const loading = ref(false)
 const errorMessage = ref('')
 const records = ref([])
@@ -50,33 +58,47 @@ const applicationLoading = ref(false)
 const applicationDialog = ref({ visible: false, form: {}, error: '', submitting: false })
 const applicationDetail = ref({ visible: false, data: null, loading: false })
 const decisionDialog = ref({ visible: false, action: 'approve', item: null, comment: '', error: '', submitting: false })
+const attendanceRules = ref([])
+const selectedAttendanceRuleId = ref(null)
+const todayAttendanceRecords = ref([])
+const selectedAttendanceMonth = ref(new Date().toISOString().slice(0, 7))
+const attendanceMonth = ref({ calendar: [] })
+const attendanceLoading = ref(false)
+const attendanceChecking = ref('')
+const attendanceMessage = ref('')
+const attendanceCheckForm = ref({ latitude: null, longitude: null, locationAddress: '', wifiSsid: '', wifiBssid: '' })
+const currentClock = ref(new Date())
+const currentMenuPaths = ref(new Set())
 
 const navItems = [
-  { label: '消息', icon: messageIcon, permission: 'chat:query' }, { label: '通讯录', icon: contactsIcon, permission: 'colleague:query' },
-  { label: '日历', icon: calendarIcon }, { label: '任务', icon: tasksIcon },
-  { label: '审批', icon: approvalIcon, permission: 'approval:self' }, { label: '工作台', icon: null },
+  { label: '消息', icon: messageIcon, permission: 'chat:query', menuPaths: ['/chat'] }, { label: '通讯录', icon: contactsIcon, permission: 'colleague:query', menuPaths: ['/colleagues'] },
+  { label: '文档', icon: tasksIcon, permission: 'document:query', menuPaths: ['/documents'] }, { label: '日历', icon: calendarIcon },
+  { label: '审批', icon: approvalIcon, permission: 'approval:self', menuPaths: ['/approvals', '/approvals/my', '/approvals/tasks'] }, { label: '工作台', icon: null, menuPaths: ['/dashboard'] },
 ]
 
 const applications = [
-  { title: '员工管理', subtitle: '员工档案与信息维护', icon: '员', color: '#3370ff', permission: 'user:query' },
-  { title: '部门管理', subtitle: '组织架构与部门维护', icon: '部', color: '#00b8a9', permission: 'department:query' },
-  { title: '职位管理', subtitle: '职位信息与级别设置', icon: '职', color: '#7b61ff', permission: 'position:query' },
-  { title: '考勤管理', subtitle: '签到、签退与考勤记录', icon: '勤', color: '#ff7a00' },
-  { title: '请假审批', subtitle: '请假申请与审批进度', icon: '假', color: '#f54a6e', permission: 'approval:submit' },
-  { title: '加班申请', subtitle: '加班申请与工时记录', icon: '加', color: '#9c5cff', permission: 'approval:submit' },
-  { title: '补卡申请', subtitle: '异常考勤补卡处理', icon: '补', color: '#1fbf75', permission: 'approval:submit' },
-  { title: '数据报表', subtitle: '团队考勤数据统计', icon: '表', color: '#15a6d9' },
+  { title: '员工管理', subtitle: '员工档案与信息维护', icon: '员', color: '#3370ff', permission: 'user:query', menuPaths: ['/system/user'] },
+  { title: '部门管理', subtitle: '组织架构与部门维护', icon: '部', color: '#00b8a9', permission: 'department:query', menuPaths: ['/system/dept'] },
+  { title: '职位管理', subtitle: '职位信息与级别设置', icon: '职', color: '#7b61ff', permission: 'position:query', menuPaths: ['/system/position'] },
+  { title: '考勤管理', subtitle: '签到、签退与考勤记录', icon: '勤', color: '#ff7a00', menuPaths: ['/attendance', '/attendance/my', '/attendance/rules'] },
+  { title: '请假审批', subtitle: '请假申请与审批进度', icon: '假', color: '#f54a6e', permission: 'approval:submit', menuPaths: ['/approvals', '/approvals/my'] },
+  { title: '加班申请', subtitle: '加班申请与工时记录', icon: '加', color: '#9c5cff', permission: 'approval:submit', menuPaths: ['/approvals', '/approvals/my'] },
+  { title: '补卡申请', subtitle: '异常考勤补卡处理', icon: '补', color: '#1fbf75', permission: 'approval:submit', menuPaths: ['/approvals', '/approvals/my'] },
+  { title: '数据报表', subtitle: '团队考勤数据统计', icon: '表', color: '#15a6d9', permission: 'attendance:stats', menuPaths: ['/attendance/stats'] },
+  { title: '权限管理', subtitle: '角色与功能菜单配置', icon: '权', color: '#5b6bda', permission: 'role:query', menuPaths: ['/system/role', '/system/menu'] },
 ]
 
 const managedSections = ['员工管理', '部门管理', '职位管理']
 const sectionResource = { 员工管理: 'user', 部门管理: 'department', 职位管理: 'position' }
 const permissionSet = computed(() => new Set(currentUser.value?.permissions || []))
-const availableNavItems = computed(() => navItems.filter((item) => !item.permission || hasPermission(item.permission)))
+const availableNavItems = computed(() => navItems.filter((item) => (!item.permission || hasPermission(item.permission)) && hasMenuAccess(item.menuPaths)))
 const roleCode = computed(() => currentUser.value?.roleCode || '')
-const availableApplications = computed(() => applications.filter((item) => !item.permission || hasPermission(item.permission)))
+const availableApplications = computed(() => applications.filter((item) => (!item.permission || hasPermission(item.permission)) && hasMenuAccess(item.menuPaths)))
 const filteredApplications = computed(() => {
   const keyword = searchKeyword.value.trim()
-  return keyword ? availableApplications.value.filter((item) => `${item.title}${item.subtitle}`.includes(keyword)) : availableApplications.value
+  if (keyword) return availableApplications.value.filter((item) => `${item.title}${item.subtitle}`.includes(keyword))
+  if (!favoritesLoaded.value) return availableApplications.value
+  return availableApplications.value.filter((item) => favoriteAppTitles.value.includes(item.title))
 })
 const filteredRecords = computed(() => {
   const keyword = moduleKeyword.value.trim().toLowerCase()
@@ -89,6 +111,23 @@ const filteredRecords = computed(() => {
     }
     return true
   })
+})
+const departmentTreeRows = computed(() => {
+  const source = filteredRecords.value
+  const children = new Map()
+  source.forEach((item) => {
+    const parentId = Number(item.parentId || 0)
+    if (!children.has(parentId)) children.set(parentId, [])
+    children.get(parentId).push(item)
+  })
+  const rows = []
+  const visit = (parentId, depth) => (children.get(Number(parentId)) || []).forEach((item) => {
+    rows.push({ ...item, depth, childCount: (children.get(Number(item.deptId)) || []).length })
+    visit(item.deptId, depth + 1)
+  })
+  visit(0, 0)
+  source.filter((item) => !rows.some((row) => Number(row.deptId) === Number(item.deptId))).forEach((item) => rows.push({ ...item, depth: 0, childCount: 0 }))
+  return rows
 })
 const displayName = computed(() => currentUser.value?.realName || currentUser.value?.username || 'admin')
 const avatarText = computed(() => displayName.value.slice(0, 1).toUpperCase())
@@ -108,6 +147,11 @@ const approvalTabs = computed(() => [
 const visibleApplications = computed(() => approvalTab.value === 'pending'
   ? pendingApplications.value
   : approvalTab.value === 'handled' ? handledApplications.value : myApplications.value)
+const selectedAttendanceRule = computed(() => attendanceRules.value.find((item) => Number(item.ruleId) === Number(selectedAttendanceRuleId.value)) || null)
+const selectedTodayAttendance = computed(() => todayAttendanceRecords.value.find((item) => Number(item.ruleId) === Number(selectedAttendanceRuleId.value)) || null)
+const currentAttendanceStatus = computed(() => selectedTodayAttendance.value?.attendanceStatus || (selectedAttendanceRule.value ? 'PENDING' : 'NO_RULE'))
+const attendanceDateText = computed(() => currentClock.value.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }))
+const attendanceTimeText = computed(() => currentClock.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }))
 const today = computed(() => {
   const date = new Date()
   const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
@@ -116,6 +160,53 @@ const today = computed(() => {
 
 function hasPermission(code) {
   return permissionSet.value.has(code)
+}
+
+function hasMenuAccess(paths) {
+  return !paths?.length || currentMenuPaths.value.size === 0 || paths.some((path) => currentMenuPaths.value.has(path))
+}
+
+async function loadCurrentMenus() {
+  try {
+    const result = await menuApi.currentTree()
+    const paths = []
+    const collect = (items) => (items || []).forEach((item) => { if (item.menuPath) paths.push(item.menuPath); collect(item.children) })
+    collect(result.data)
+    currentMenuPaths.value = new Set(paths)
+  } catch (_) {
+    currentMenuPaths.value = new Set()
+  }
+  loadFavoriteApplications()
+}
+
+function favoriteStorageKey() {
+  return `oa_favorite_apps_${currentUser.value?.userId || 'guest'}`
+}
+
+function loadFavoriteApplications() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(favoriteStorageKey()))
+    favoriteAppTitles.value = Array.isArray(stored) ? stored : availableApplications.value.map((item) => item.title)
+  } catch (_) {
+    favoriteAppTitles.value = availableApplications.value.map((item) => item.title)
+  }
+  favoritesLoaded.value = true
+}
+
+function openManageApplications() {
+  manageAppsDialog.value = { visible: true, selected: [...favoriteAppTitles.value] }
+}
+
+function saveFavoriteApplications() {
+  favoriteAppTitles.value = [...manageAppsDialog.value.selected]
+  favoritesLoaded.value = true
+  localStorage.setItem(favoriteStorageKey(), JSON.stringify(favoriteAppTitles.value))
+  manageAppsDialog.value.visible = false
+  showNotice('常用应用已更新')
+}
+
+function resetFavoriteApplications() {
+  manageAppsDialog.value.selected = availableApplications.value.map((item) => item.title)
 }
 
 function can(action) {
@@ -139,6 +230,7 @@ function canDeleteItem(item) {
 
 onMounted(async () => {
   window.addEventListener('oa-unauthorized', resetLogin)
+  window.setInterval(() => { currentClock.value = new Date() }, 1000)
   if (authenticated.value) await loadCurrentUser()
 })
 
@@ -151,6 +243,7 @@ async function login() {
     authenticated.value = true
     currentUser.value = result.data.user || null
     if (!currentUser.value) await loadCurrentUser()
+    else await loadCurrentMenus()
     if (hasPermission('chat:query')) await loadChatContacts(false)
   } catch (error) {
     loginError.value = error.message
@@ -163,6 +256,7 @@ async function loadCurrentUser() {
   try {
     const result = await authApi.info()
     currentUser.value = result.data
+    await loadCurrentMenus()
     if (hasPermission('chat:query')) await loadChatContacts(false)
   } catch (error) {
     resetLogin()
@@ -174,6 +268,9 @@ function resetLogin() {
   localStorage.removeItem('oa_token')
   authenticated.value = false
   currentUser.value = null
+  currentMenuPaths.value = new Set()
+  favoriteAppTitles.value = []
+  favoritesLoaded.value = false
   activeSection.value = '工作台'
 }
 
@@ -195,7 +292,16 @@ async function openApplication(title) {
   }
   const applicationPreset = { 请假审批: 'LEAVE', 加班申请: 'OVERTIME', 补卡申请: 'MAKEUP' }
   const presetType = applicationPreset[title]
-  activeSection.value = presetType ? '审批' : title
+  let targetSection = presetType ? '审批' : title
+  if (title === '考勤管理') {
+    if (hasPermission('attendance:self')) targetSection = '考勤管理'
+    else if (hasPermission('attendance:rule:query')) targetSection = '考勤规则'
+    else {
+      errorMessage.value = '当前账号没有个人考勤或规则管理权限'
+      return
+    }
+  }
+  activeSection.value = targetSection
   moduleKeyword.value = ''
   employeeDeptFilter.value = ''
   employeeStatusFilter.value = ''
@@ -203,6 +309,7 @@ async function openApplication(title) {
   errorMessage.value = ''
   if (managedSections.includes(title)) await loadSection()
   if (title === '消息') await loadChatContacts()
+  if (targetSection === '考勤管理') await loadAttendance()
   if (title === '审批' || presetType) {
     approvalTab.value = 'mine'
     await loadApplications()
@@ -508,6 +615,114 @@ function formatContactTime(value) {
   return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
+async function loadAttendance() {
+  attendanceLoading.value = true
+  attendanceMessage.value = ''
+  errorMessage.value = ''
+  try {
+    const [ruleResult, todayResult, monthResult] = await Promise.all([
+      attendanceApi.availableRules(), attendanceApi.todayRecords(), attendanceApi.month(selectedAttendanceMonth.value),
+    ])
+    attendanceRules.value = ruleResult.data || []
+    todayAttendanceRecords.value = todayResult.data || []
+    attendanceMonth.value = { calendar: [], ...(monthResult.data || {}) }
+    if (!attendanceRules.value.some((item) => Number(item.ruleId) === Number(selectedAttendanceRuleId.value))) {
+      selectedAttendanceRuleId.value = attendanceRules.value[0]?.ruleId || null
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    attendanceLoading.value = false
+  }
+}
+
+async function loadAttendanceMonth() {
+  attendanceLoading.value = true
+  errorMessage.value = ''
+  try {
+    const result = await attendanceApi.month(selectedAttendanceMonth.value)
+    attendanceMonth.value = { calendar: [], ...(result.data || {}) }
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    attendanceLoading.value = false
+  }
+}
+
+async function submitAttendance(action) {
+  if (!selectedAttendanceRuleId.value || attendanceChecking.value) return
+  attendanceChecking.value = action
+  attendanceMessage.value = ''
+  errorMessage.value = ''
+  try {
+    const form = attendanceCheckForm.value
+    const api = action === 'in' ? attendanceApi.checkIn : attendanceApi.checkOut
+    const result = await api({
+      ruleId: Number(selectedAttendanceRuleId.value),
+      latitude: form.latitude,
+      longitude: form.longitude,
+      locationAddress: form.locationAddress || null,
+      wifiSsid: form.wifiSsid || null,
+      wifiBssid: form.wifiBssid || null,
+      clientInfo: navigator.userAgent,
+    })
+    const successMessage = result.msg || (action === 'in' ? '签到成功' : '签退成功')
+    await loadAttendance()
+    attendanceMessage.value = successMessage
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    attendanceChecking.value = ''
+  }
+}
+
+function getAttendanceLocation() {
+  attendanceMessage.value = ''
+  errorMessage.value = ''
+  if (!navigator.geolocation) {
+    errorMessage.value = '当前浏览器不支持定位'
+    return
+  }
+  navigator.geolocation.getCurrentPosition((position) => {
+    attendanceCheckForm.value.latitude = Number(position.coords.latitude.toFixed(6))
+    attendanceCheckForm.value.longitude = Number(position.coords.longitude.toFixed(6))
+    attendanceCheckForm.value.locationAddress = '浏览器定位'
+    attendanceMessage.value = '定位已获取，可以打卡'
+  }, (error) => {
+    errorMessage.value = error.message || '定位获取失败，请检查浏览器定位权限'
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 })
+}
+
+function attendanceRuleCheckText(rule) {
+  const checks = []
+  if (Number(rule?.requireWifi) === 1) checks.push('企业 WiFi')
+  if (Number(rule?.requireLocation) === 1) checks.push('定位')
+  return checks.length ? checks.join(' + ') : '无需校验'
+}
+
+function formatRuleTime(value) {
+  return value ? String(value).slice(0, 5) : '—'
+}
+
+function formatCheckTime(value) {
+  return value ? String(value).replace('T', ' ').slice(11, 16) : '—'
+}
+
+function attendanceStatusLabel(value) {
+  return { NORMAL: '正常', LATE: '迟到', EARLY: '早退', ABSENT: '缺勤', LEAVE: '请假', OVERTIME: '加班', PENDING: '待打卡', NO_RULE: '无考勤规则' }[value] || '待确认'
+}
+
+function attendanceStatusClass(value) {
+  if (value === 'NORMAL' || value === 'OVERTIME') return 'normal'
+  if (value === 'LATE' || value === 'EARLY' || value === 'PENDING') return 'warning'
+  if (value === 'LEAVE') return 'leave'
+  return 'abnormal'
+}
+
+function minutesToHours(value) {
+  return `${(Number(value || 0) / 60).toFixed(1)} 小时`
+}
+
 async function loadApplications() {
   applicationLoading.value = true
   errorMessage.value = ''
@@ -686,7 +901,7 @@ function departmentName(id) {
       <label class="search-box"><span>⌕</span><input v-model="searchKeyword" type="search" placeholder="搜索应用" /></label>
       <nav class="main-nav">
         <button v-for="item in availableNavItems" :key="item.label" :class="['nav-item', { active: activeSection === item.label }]" @click="openApplication(item.label)">
-          <img v-if="item.icon" class="nav-icon" :src="item.icon" alt="" /><span v-else class="nav-icon workbench-icon">✦</span><span>{{ item.label }}</span><span v-if="item.label === '消息' && totalUnread" class="nav-unread">{{ totalUnread > 99 ? '99+' : totalUnread }}</span>
+          <img v-if="item.icon" class="nav-icon" :src="item.icon" alt="" /><span v-else class="nav-icon workbench-icon">{{ item.glyph || '✦' }}</span><span>{{ item.label }}</span><span v-if="item.label === '消息' && totalUnread" class="nav-unread">{{ totalUnread > 99 ? '99+' : totalUnread }}</span>
         </button>
       </nav>
       <div class="sidebar-divider"></div>
@@ -708,16 +923,18 @@ function departmentName(id) {
           <div class="date-card"><span>今日</span><strong>{{ today.day }}</strong><small>{{ today.detail }}</small></div>
         </div>
         <section class="section-block">
-          <div class="section-heading"><div><h2>常用应用</h2><p>快速开始你的日常工作</p></div><button class="link-button">管理常用应用 →</button></div>
+          <div class="section-heading"><div><h2>常用应用</h2><p>快速开始你的日常工作</p></div><button class="link-button" @click="openManageApplications">管理常用应用 →</button></div>
           <div v-if="filteredApplications.length" class="application-grid">
             <button v-for="application in filteredApplications" :key="application.title" class="application-card" @click="openApplication(application.title)">
               <span class="app-icon" :style="{ background: application.color }">{{ application.icon }}</span>
               <span class="app-copy"><strong>{{ application.title }}</strong><small>{{ application.subtitle }}</small></span><span class="app-arrow">›</span>
             </button>
           </div>
-          <div v-else class="empty-state">没有找到“{{ searchKeyword }}”相关应用</div>
+          <div v-else class="empty-state">{{ searchKeyword ? `没有找到“${searchKeyword}”相关应用` : '尚未添加常用应用，点击右上角进行管理' }}</div>
         </section>
       </section>
+
+      <DocumentCenter v-else-if="activeSection === '文档'" :permissions="currentUser?.permissions || []" />
 
       <section v-else-if="activeSection === '通讯录'" class="communication-page contacts-page">
         <div class="communication-heading"><div><p class="eyebrow">CONTACTS</p><h1>查找同事</h1><p>通过姓名、工号或手机号查找权限范围内的同事。</p></div></div>
@@ -763,6 +980,38 @@ function departmentName(id) {
         <section v-else class="no-conversation"><span>✉</span><h2>选择一个联系人</h2><p>从左侧联系人列表开始聊天。</p></section>
       </section>
 
+      <AttendanceRuleManagement v-else-if="activeSection === '考勤规则'" :permissions="currentUser?.permissions || []" :role-code="roleCode" :current-dept-id="currentUser?.deptId" @back="openApplication('工作台')" />
+      <AttendanceStats v-else-if="activeSection === '数据报表'" :role-code="roleCode" :current-dept-id="currentUser?.deptId" @back="openApplication('工作台')" />
+      <AccessManagement v-else-if="activeSection === '权限管理'" :permissions="currentUser?.permissions || []" @back="openApplication('工作台')" />
+
+      <section v-else-if="activeSection === '考勤管理'" class="attendance-page">
+        <div class="management-heading attendance-heading">
+          <div><button class="back-button" @click="openApplication('工作台')">← 返回工作台</button><h1>我的考勤</h1><p>完成每日签到、签退并查看考勤记录</p></div>
+          <button class="attendance-refresh" :disabled="attendanceLoading" @click="loadAttendance"><span>↻</span>{{ attendanceLoading ? '刷新中' : '刷新' }}</button>
+        </div>
+        <div v-if="attendanceMessage" class="attendance-notice">✓ {{ attendanceMessage }}</div><div v-if="errorMessage" class="api-error">{{ errorMessage }}</div>
+        <div class="attendance-overview">
+          <article class="clock-card"><p>{{ attendanceDateText }}</p><strong>{{ attendanceTimeText }}</strong><span>请在规定时间与考勤范围内完成打卡</span><i></i><i></i></article>
+          <article class="attendance-card rule-card">
+            <div class="attendance-card-title"><div><span>今日考勤规则</span><h2>{{ selectedAttendanceRule?.ruleName || '暂无可用规则' }}</h2></div><b>{{ attendanceRules.length }} 条</b></div>
+            <label v-if="attendanceRules.length > 1" class="attendance-rule-select">选择规则<select v-model.number="selectedAttendanceRuleId"><option v-for="rule in attendanceRules" :key="rule.ruleId" :value="rule.ruleId">{{ rule.ruleName }}</option></select></label>
+            <div v-if="selectedAttendanceRule" class="rule-detail-grid"><div><span>上班时间</span><strong>{{ formatRuleTime(selectedAttendanceRule.workStartTime) }}</strong></div><div><span>下班时间</span><strong>{{ formatRuleTime(selectedAttendanceRule.workEndTime) }}</strong></div><div><span>适用部门</span><strong>{{ selectedAttendanceRule.deptName || '全公司' }}</strong></div><div><span>校验方式</span><strong>{{ attendanceRuleCheckText(selectedAttendanceRule) }}</strong></div></div>
+            <div v-else class="attendance-inline-empty">请联系管理员配置今日生效的考勤规则</div>
+          </article>
+          <article class="attendance-card punch-card">
+            <div class="attendance-card-title"><div><span>今日打卡</span><h2>{{ attendanceStatusLabel(currentAttendanceStatus) }}</h2></div><b :class="attendanceStatusClass(currentAttendanceStatus)">{{ attendanceStatusLabel(currentAttendanceStatus) }}</b></div>
+            <div class="punch-timeline"><div :class="{ done: selectedTodayAttendance?.checkInTime }"><i></i><span>上班签到</span><strong>{{ formatCheckTime(selectedTodayAttendance?.checkInTime) }}</strong><small>{{ attendanceStatusLabel(selectedTodayAttendance?.checkInStatus || 'PENDING') }}</small></div><div :class="{ done: selectedTodayAttendance?.checkOutTime }"><i></i><span>下班签退</span><strong>{{ formatCheckTime(selectedTodayAttendance?.checkOutTime) }}</strong><small>{{ attendanceStatusLabel(selectedTodayAttendance?.checkOutStatus || 'PENDING') }}</small></div></div>
+            <div v-if="Number(selectedAttendanceRule?.requireLocation) === 1" class="location-row"><button type="button" @click="getAttendanceLocation">⌖ 获取当前位置</button><span>{{ attendanceCheckForm.locationAddress || '尚未获取定位' }}</span></div>
+            <p v-if="Number(selectedAttendanceRule?.requireWifi) === 1" class="wifi-tip">当前规则要求企业 WiFi；浏览器无法自动读取 WiFi 名称，请使用已接入企业 WiFi 能力的客户端打卡。</p>
+            <div class="punch-actions"><button :disabled="!selectedAttendanceRule || Boolean(selectedTodayAttendance?.checkInTime) || Boolean(attendanceChecking)" @click="submitAttendance('in')">{{ attendanceChecking === 'in' ? '签到中…' : selectedTodayAttendance?.checkInTime ? '已签到' : '签到' }}</button><button class="checkout-button" :disabled="!selectedAttendanceRule || !selectedTodayAttendance?.checkInTime || Boolean(selectedTodayAttendance?.checkOutTime) || Boolean(attendanceChecking)" @click="submitAttendance('out')">{{ attendanceChecking === 'out' ? '签退中…' : selectedTodayAttendance?.checkOutTime ? '已签退' : '签退' }}</button></div>
+          </article>
+        </div>
+
+        <div class="attendance-month-heading"><div><p class="eyebrow">MONTHLY ATTENDANCE</p><h2>月度考勤</h2></div><label><input v-model="selectedAttendanceMonth" type="month" /><button :disabled="attendanceLoading" @click="loadAttendanceMonth">查询</button></label></div>
+        <div class="attendance-metrics"><article><span>累计工时</span><strong>{{ minutesToHours(attendanceMonth.workMinutes) }}</strong></article><article><span>迟到</span><strong>{{ attendanceMonth.lateCount || 0 }}<small> 次</small></strong></article><article><span>缺勤</span><strong>{{ attendanceMonth.absentCount || 0 }}<small> 次</small></strong></article><article><span>加班</span><strong>{{ attendanceMonth.overtimeCount || 0 }}<small> 次</small></strong></article><article><span>加班时长</span><strong>{{ minutesToHours(attendanceMonth.overtimeMinutes) }}</strong></article><article><span>请假</span><strong>{{ attendanceMonth.leaveCount || 0 }}<small> 次</small></strong></article></div>
+        <div class="data-panel attendance-records"><table><thead><tr><th>日期</th><th>考勤规则</th><th>签到</th><th>签退</th><th>状态</th><th>工作时长</th><th>加班时长</th></tr></thead><tbody><tr v-for="item in attendanceMonth.calendar || []" :key="item.recordId"><td class="name-cell">{{ item.attendanceDate }}</td><td>{{ item.ruleName || '—' }}</td><td>{{ formatCheckTime(item.checkInTime) }}</td><td>{{ formatCheckTime(item.checkOutTime) }}</td><td><span :class="['attendance-status-tag', attendanceStatusClass(item.attendanceStatus)]">{{ attendanceStatusLabel(item.attendanceStatus) }}</span></td><td>{{ minutesToHours(item.workMinutes) }}</td><td>{{ minutesToHours(item.overtimeMinutes) }}</td></tr></tbody></table><div v-if="!attendanceLoading && !(attendanceMonth.calendar || []).length" class="approval-empty"><span>勤</span><strong>本月暂无考勤记录</strong><p>完成签到后，记录会自动显示在这里。</p></div></div>
+      </section>
+
       <section v-else-if="activeSection === '审批'" class="approval-page">
         <div class="management-heading approval-heading">
           <div><button class="back-button" @click="openApplication('工作台')">← 返回工作台</button><h1>审批中心</h1><p>提交申请并查看审批进度</p></div>
@@ -800,6 +1049,7 @@ function departmentName(id) {
             <select v-model="employeeStatusFilter"><option value="">全部状态</option><option value="1">在职</option><option value="0">离职</option></select>
             <select v-model="employeeGenderFilter"><option value="">全部性别</option><option value="男">男</option><option value="女">女</option></select>
           </template>
+          <div v-if="activeSection === '部门管理'" class="department-view-switch"><button :class="{ active: departmentView === 'tree' }" @click="departmentView = 'tree'">组织树</button><button :class="{ active: departmentView === 'list' }" @click="departmentView = 'list'">列表</button></div>
           <button class="refresh-button" :disabled="loading" title="刷新数据" @click="loadSection"><span>↻</span>{{ loading ? '刷新中' : '刷新' }}</button>
         </div>
         <div v-if="errorMessage" class="api-error">{{ errorMessage }}</div>
@@ -809,9 +1059,13 @@ function departmentName(id) {
             <thead><tr><th>工号</th><th>姓名</th><th>性别</th><th>部门</th><th>职位</th><th>手机号</th><th>入职日期</th><th>状态</th><th>操作</th></tr></thead>
             <tbody><tr v-for="item in filteredRecords" :key="item.userId"><td>{{ item.employeeNo }}</td><td class="name-cell"><span class="table-avatar">{{ item.realName?.slice(0,1) }}</span>{{ item.realName }}</td><td>{{ item.gender || '—' }}</td><td>{{ item.deptName || '—' }}</td><td>{{ item.positionName || '—' }}</td><td>{{ item.phone || '—' }}</td><td>{{ item.hireDate || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '在职' : '离职' }}</span></td><td class="actions-cell"><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canEditItem(item) && Number(item.userId) !== Number(currentUser?.userId)" class="text-action" @click="resetUserPassword(item)">重置密码</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
           </table>
-          <table v-else-if="activeSection === '部门管理'">
+          <table v-else-if="activeSection === '部门管理' && departmentView === 'list'">
             <thead><tr><th>部门编码</th><th>部门名称</th><th>上级部门</th><th>负责人</th><th>说明</th><th>状态</th><th>操作</th></tr></thead>
             <tbody><tr v-for="item in filteredRecords" :key="item.deptId"><td>{{ item.deptCode }}</td><td class="name-cell">{{ item.deptName }}</td><td>{{ item.parentDeptName || '—' }}</td><td>{{ item.leaderName || '—' }}</td><td>{{ item.description || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '启用' : '禁用' }}</span></td><td><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
+          </table>
+          <table v-else-if="activeSection === '部门管理'" class="department-tree-table">
+            <thead><tr><th>组织架构</th><th>部门编码</th><th>负责人</th><th>下级部门</th><th>说明</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody><tr v-for="item in departmentTreeRows" :key="item.deptId"><td class="name-cell"><span class="tree-indent" :style="{ width: `${item.depth * 28}px` }"></span><span class="tree-branch">{{ item.depth ? '└' : '◆' }}</span><span class="department-tree-icon">部</span>{{ item.deptName }}</td><td>{{ item.deptCode }}</td><td>{{ item.leaderName || '—' }}</td><td>{{ item.childCount ? `${item.childCount} 个` : '—' }}</td><td>{{ item.description || '—' }}</td><td><span :class="['status-tag', item.status ? 'on' : 'off']">{{ item.status ? '启用' : '禁用' }}</span></td><td><button v-if="canEditItem(item)" class="text-action" @click="openEdit(item)">编辑</button><button v-if="canDeleteItem(item)" class="text-action danger" @click="removeRecord(item)">删除</button><span v-if="!canEditItem(item) && !canDeleteItem(item)" class="no-action">—</span></td></tr></tbody>
           </table>
           <table v-else>
             <thead><tr><th>职位名称</th><th>所属部门</th><th>职位等级</th><th>职位说明</th><th>操作</th></tr></thead>
@@ -879,6 +1133,14 @@ function departmentName(id) {
         <div v-if="decisionDialog.error" class="form-error">{{ decisionDialog.error }}</div>
         <div class="dialog-actions"><button type="button" @click="decisionDialog.visible = false">取消</button><button :class="['primary-button', { 'danger-submit': decisionDialog.action === 'reject' }]" :disabled="decisionDialog.submitting">{{ decisionDialog.submitting ? '处理中…' : decisionDialog.action === 'approve' ? '确认通过' : '确认驳回' }}</button></div>
       </form>
+    </div>
+    <div v-if="manageAppsDialog.visible" class="dialog-mask" @click.self="manageAppsDialog.visible = false">
+      <div class="data-dialog favorite-app-dialog">
+        <div class="dialog-heading"><div><h2>管理常用应用</h2><p>选择后将显示在当前账号的工作台</p></div><button type="button" @click="manageAppsDialog.visible = false">×</button></div>
+        <div class="favorite-app-summary"><span>已选择 {{ manageAppsDialog.selected.length }} 个应用</span><button @click="resetFavoriteApplications">全部选择</button></div>
+        <div class="favorite-app-grid"><label v-for="item in availableApplications" :key="item.title" :class="{ selected: manageAppsDialog.selected.includes(item.title) }"><input v-model="manageAppsDialog.selected" type="checkbox" :value="item.title" /><span class="app-icon" :style="{ background: item.color }">{{ item.icon }}</span><span><strong>{{ item.title }}</strong><small>{{ item.subtitle }}</small></span><i>✓</i></label></div>
+        <div class="dialog-actions"><button @click="manageAppsDialog.visible = false">取消</button><button class="primary-button" @click="saveFavoriteApplications">保存设置</button></div>
+      </div>
     </div>
     <div v-if="profileDialog.visible" class="dialog-mask" @click.self="profileDialog.visible = false">
       <div class="data-dialog profile-dialog">

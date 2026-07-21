@@ -8,7 +8,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/oa_system?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
     username: root
-    password: shisannian1223
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
   redis:
     host: localhost
     port: 6379
@@ -25,6 +25,19 @@ spring:
     nacos:
       config:
         enabled: false
+      discovery:
+        server-addr: 127.0.0.1:8848
+        fail-fast: false
+
+flowable:
+  database-schema-update: false
+  async-executor-activate: false
+  history-level: audit
+  process-definition-location-prefix: classpath*:/processes/
+  eventregistry:
+    enabled: false
+  idm:
+    enabled: false
 
 # MyBatis配置
 mybatis-plus:
@@ -41,7 +54,7 @@ mybatis-plus:
 
 # JWT配置
 jwt:
-  secret: oa-attendance-system-secret-key
+  secret: ${JWT_SECRET:oa-attendance-system-secret-key-local-development}
   expire: 604800 # 7天
   header: Authorization
 

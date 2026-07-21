@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://oa.example.com/process">
+    <process id="applicationApproval" name="统一申请审批流程" isExecutable="true">
+        <startEvent id="start" name="提交申请"/>
+        <sequenceFlow id="flow-start-approval" sourceRef="start" targetRef="departmentApproval"/>
+        <userTask id="departmentApproval"
+                  name="部门主管/管理员审批"
+                  flowable:candidateGroups="${candidateGroups}"/>
+        <sequenceFlow id="flow-approval-decision" sourceRef="departmentApproval" targetRef="approvalDecision"/>
+        <exclusiveGateway id="approvalDecision" name="审批结果"/>
+        <sequenceFlow id="flow-approved" sourceRef="approvalDecision" targetRef="approvedEnd">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approved == true}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-rejected" sourceRef="approvalDecision" targetRef="rejectedEnd">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approved == false}]]></conditionExpression>
+        </sequenceFlow>
+        <endEvent id="approvedEnd" name="审批通过"/>
+        <endEvent id="rejectedEnd" name="审批驳回"/>
+    </process>
+</definitions>

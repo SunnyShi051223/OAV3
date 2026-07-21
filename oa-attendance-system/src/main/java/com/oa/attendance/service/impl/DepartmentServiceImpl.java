@@ -9,6 +9,7 @@ import com.oa.attendance.entity.SysUser;
 import com.oa.attendance.exception.BusinessException;
 import com.oa.attendance.mapper.SysDepartmentMapper;
 import com.oa.attendance.mapper.SysUserMapper;
+import com.oa.attendance.service.DataScopeService;
 import com.oa.attendance.service.IDepartmentService;
 import com.oa.attendance.vo.DepartmentListVO;
 import com.oa.attendance.vo.DepartmentTreeNodeVO;
@@ -36,9 +37,16 @@ public class DepartmentServiceImpl implements IDepartmentService {
     @Autowired
     private SysUserMapper sysUserMapper;
 
+    @Autowired
+    private DataScopeService dataScopeService;
+
     @Override
     @Transactional
     public Result<?> create(DepartmentCreateDTO dto) {
+        if (!dataScopeService.hasFullDataAccess()) {
+            return Result.error("部门主管只能维护本部门");
+        }
+
         // 检查部门代码是否已存在
         QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
         wrapper.eq("dept_code", dto.getDeptCode());
@@ -65,6 +73,9 @@ public class DepartmentServiceImpl implements IDepartmentService {
     @Transactional
     public Result<?> update(DepartmentUpdateDTO dto) {
         SysDepartment existing = departmentMapper.selectById(dto.getDeptId());
+        if (existing != null && !dataScopeService.canAccessDepartment(existing.getDeptId())) {
+            return Result.error("只能维护本部门");
+        }
         if (existing == null) {
             return Result.error("部门不存在");
         }
@@ -94,6 +105,9 @@ public class DepartmentServiceImpl implements IDepartmentService {
     @Transactional
     public Result<?> delete(Long deptId) {
         SysDepartment dept = departmentMapper.selectById(deptId);
+        if (dept != null && !dataScopeService.canAccessDepartment(dept.getDeptId())) {
+            return Result.error("只能删除本部门");
+        }
 
         if (dept == null) {
             throw new BusinessException("部门不存在");
@@ -131,6 +145,9 @@ public class DepartmentServiceImpl implements IDepartmentService {
     public Result<DepartmentListVO> getById(Long id) {
         SysDepartment dept = departmentMapper.selectById(id);
         if (dept != null && dept.getDeleted() == 0) {
+            if (!dataScopeService.canAccessDepartment(dept.getDeptId())) {
+                return Result.error("只能查看本部门");
+            }
             DepartmentListVO vo = new DepartmentListVO();
             BeanUtils.copyProperties(dept, vo);
 
@@ -151,6 +168,9 @@ public class DepartmentServiceImpl implements IDepartmentService {
     public Result<List<DepartmentListVO>> listAll() {
         QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
+        if (dataScopeService.hasDepartmentDataAccess()) {
+            wrapper.eq("dept_id", dataScopeService.getCurrentDeptId());
+        }
         wrapper.orderByDesc("create_time");
 
         List<SysDepartment> departments = departmentMapper.selectList(wrapper);
@@ -174,6 +194,16 @@ public class DepartmentServiceImpl implements IDepartmentService {
 
     @Override
     public Result<List<DepartmentTreeNodeVO>> getTree() {
+        if (dataScopeService.hasDepartmentDataAccess()) {
+            SysDepartment currentDept = departmentMapper.selectById(dataScopeService.getCurrentDeptId());
+            if (currentDept == null || currentDept.getDeleted() != 0) {
+                return Result.success("鏌ヨ鎴愬姛", new ArrayList<>());
+            }
+            DepartmentTreeNodeVO node = new DepartmentTreeNodeVO();
+            BeanUtils.copyProperties(currentDept, node);
+            return Result.success("鏌ヨ鎴愬姛", java.util.Collections.singletonList(node));
+        }
+
         // 查询所有未删除的部门
         QueryWrapper<SysDepartment> wrapper = new QueryWrapper<>();
         wrapper.eq("deleted", 0);
@@ -189,6 +219,13 @@ public class DepartmentServiceImpl implements IDepartmentService {
 
     @Override
     public Result<List<DepartmentListVO>> getByParentId(Long parentId) {
+        if (!dataScopeService.canAccessDepartment(parentId)) {
+            return Result.error("只能查看本部门");
+        }
+        if (dataScopeService.hasDepartmentDataAccess()) {
+            return Result.success("查询成功", new ArrayList<>());
+        }
+
         List<SysDepartment> departments = departmentMapper.selectByParentId(parentId);
         List<DepartmentListVO> vos = departments.stream().map(dept -> {
             DepartmentListVO vo = new DepartmentListVO();
