@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { authApi, departmentApi, positionApi, userApi } from './api/oa'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { applicationApi, authApi, chatApi, colleagueApi, departmentApi, positionApi, userApi } from './api/oa'
 import messageIcon from './assets/sidebar/message.svg'
 import contactsIcon from './assets/sidebar/contacts.svg'
 import calendarIcon from './assets/sidebar/calendar.svg'
@@ -28,11 +28,33 @@ const users = ref([])
 const dialog = ref({ visible: false, mode: 'create', form: {}, error: '' })
 const profileDialog = ref({ visible: false, form: {}, password: {}, error: '', success: '' })
 const notice = ref('')
+const colleagueKeyword = ref('')
+const colleagueResults = ref([])
+const colleagueSearched = ref(false)
+const colleagueLoading = ref(false)
+const chatContacts = ref([])
+const chatContactKeyword = ref('')
+const selectedChatContact = ref(null)
+const chatMessages = ref([])
+const chatDraft = ref('')
+const chatLoading = ref(false)
+const chatSending = ref(false)
+const chatMessagesContainer = ref(null)
+const approvalTab = ref('mine')
+const myApplications = ref([])
+const pendingApplications = ref([])
+const handledApplications = ref([])
+const applicationTypes = ref([])
+const makeupOptions = ref([])
+const applicationLoading = ref(false)
+const applicationDialog = ref({ visible: false, form: {}, error: '', submitting: false })
+const applicationDetail = ref({ visible: false, data: null, loading: false })
+const decisionDialog = ref({ visible: false, action: 'approve', item: null, comment: '', error: '', submitting: false })
 
 const navItems = [
-  { label: '消息', icon: messageIcon }, { label: '通讯录', icon: contactsIcon },
+  { label: '消息', icon: messageIcon, permission: 'chat:query' }, { label: '通讯录', icon: contactsIcon, permission: 'colleague:query' },
   { label: '日历', icon: calendarIcon }, { label: '任务', icon: tasksIcon },
-  { label: '审批', icon: approvalIcon }, { label: '工作台', icon: null },
+  { label: '审批', icon: approvalIcon, permission: 'approval:self' }, { label: '工作台', icon: null },
 ]
 
 const applications = [
@@ -40,15 +62,16 @@ const applications = [
   { title: '部门管理', subtitle: '组织架构与部门维护', icon: '部', color: '#00b8a9', permission: 'department:query' },
   { title: '职位管理', subtitle: '职位信息与级别设置', icon: '职', color: '#7b61ff', permission: 'position:query' },
   { title: '考勤管理', subtitle: '签到、签退与考勤记录', icon: '勤', color: '#ff7a00' },
-  { title: '请假审批', subtitle: '请假申请与审批进度', icon: '假', color: '#f54a6e' },
-  { title: '加班申请', subtitle: '加班申请与工时记录', icon: '加', color: '#9c5cff' },
-  { title: '补卡申请', subtitle: '异常考勤补卡处理', icon: '补', color: '#1fbf75' },
+  { title: '请假审批', subtitle: '请假申请与审批进度', icon: '假', color: '#f54a6e', permission: 'approval:submit' },
+  { title: '加班申请', subtitle: '加班申请与工时记录', icon: '加', color: '#9c5cff', permission: 'approval:submit' },
+  { title: '补卡申请', subtitle: '异常考勤补卡处理', icon: '补', color: '#1fbf75', permission: 'approval:submit' },
   { title: '数据报表', subtitle: '团队考勤数据统计', icon: '表', color: '#15a6d9' },
 ]
 
 const managedSections = ['员工管理', '部门管理', '职位管理']
 const sectionResource = { 员工管理: 'user', 部门管理: 'department', 职位管理: 'position' }
 const permissionSet = computed(() => new Set(currentUser.value?.permissions || []))
+const availableNavItems = computed(() => navItems.filter((item) => !item.permission || hasPermission(item.permission)))
 const roleCode = computed(() => currentUser.value?.roleCode || '')
 const availableApplications = computed(() => applications.filter((item) => !item.permission || hasPermission(item.permission)))
 const filteredApplications = computed(() => {
@@ -69,6 +92,22 @@ const filteredRecords = computed(() => {
 })
 const displayName = computed(() => currentUser.value?.realName || currentUser.value?.username || 'admin')
 const avatarText = computed(() => displayName.value.slice(0, 1).toUpperCase())
+const filteredChatContacts = computed(() => {
+  const keyword = chatContactKeyword.value.trim().toLowerCase()
+  if (!keyword) return chatContacts.value
+  return chatContacts.value.filter((item) => `${item.realName}${item.deptName || ''}${item.positionName || ''}`.toLowerCase().includes(keyword))
+})
+const totalUnread = computed(() => chatContacts.value.reduce((sum, item) => sum + Number(item.unreadCount || 0), 0))
+const approvalTabs = computed(() => [
+  { value: 'mine', label: '我的申请', count: myApplications.value.length },
+  ...(hasPermission('approval:handle') ? [
+    { value: 'pending', label: '待我审批', count: pendingApplications.value.length },
+    { value: 'handled', label: '已处理', count: handledApplications.value.length },
+  ] : []),
+])
+const visibleApplications = computed(() => approvalTab.value === 'pending'
+  ? pendingApplications.value
+  : approvalTab.value === 'handled' ? handledApplications.value : myApplications.value)
 const today = computed(() => {
   const date = new Date()
   const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
@@ -112,6 +151,7 @@ async function login() {
     authenticated.value = true
     currentUser.value = result.data.user || null
     if (!currentUser.value) await loadCurrentUser()
+    if (hasPermission('chat:query')) await loadChatContacts(false)
   } catch (error) {
     loginError.value = error.message
   } finally {
@@ -123,6 +163,7 @@ async function loadCurrentUser() {
   try {
     const result = await authApi.info()
     currentUser.value = result.data
+    if (hasPermission('chat:query')) await loadChatContacts(false)
   } catch (error) {
     resetLogin()
     loginError.value = error.message
@@ -147,13 +188,26 @@ async function openApplication(title) {
     errorMessage.value = '当前账号没有访问该模块的权限'
     return
   }
-  activeSection.value = title
+  const nav = navItems.find((item) => item.label === title)
+  if (nav?.permission && !hasPermission(nav.permission)) {
+    errorMessage.value = '当前账号没有访问该模块的权限'
+    return
+  }
+  const applicationPreset = { 请假审批: 'LEAVE', 加班申请: 'OVERTIME', 补卡申请: 'MAKEUP' }
+  const presetType = applicationPreset[title]
+  activeSection.value = presetType ? '审批' : title
   moduleKeyword.value = ''
   employeeDeptFilter.value = ''
   employeeStatusFilter.value = ''
   employeeGenderFilter.value = ''
   errorMessage.value = ''
   if (managedSections.includes(title)) await loadSection()
+  if (title === '消息') await loadChatContacts()
+  if (title === '审批' || presetType) {
+    approvalTab.value = 'mine'
+    await loadApplications()
+    if (presetType) openApplicationDialog(presetType)
+  }
 }
 
 async function loadReferenceData() {
@@ -339,6 +393,268 @@ async function changeMyPassword() {
   }
 }
 
+async function searchColleagues() {
+  const keyword = colleagueKeyword.value.trim()
+  colleagueSearched.value = true
+  errorMessage.value = ''
+  if (!keyword) {
+    colleagueResults.value = []
+    return
+  }
+  colleagueLoading.value = true
+  try {
+    const result = await colleagueApi.search(keyword)
+    colleagueResults.value = result.data || []
+  } catch (error) {
+    errorMessage.value = error.message
+    colleagueResults.value = []
+  } finally {
+    colleagueLoading.value = false
+  }
+}
+
+async function loadChatContacts(autoSelect = true) {
+  chatLoading.value = true
+  errorMessage.value = ''
+  try {
+    const result = await chatApi.contacts()
+    chatContacts.value = result.data || []
+    if (!autoSelect) return
+    const currentId = selectedChatContact.value?.userId
+    const nextContact = chatContacts.value.find((item) => Number(item.userId) === Number(currentId)) || chatContacts.value[0]
+    if (nextContact) await selectChatContact(nextContact)
+    else {
+      selectedChatContact.value = null
+      chatMessages.value = []
+    }
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    chatLoading.value = false
+  }
+}
+
+async function selectChatContact(contact) {
+  selectedChatContact.value = contact
+  chatMessages.value = []
+  chatLoading.value = true
+  errorMessage.value = ''
+  try {
+    const result = await chatApi.messages(contact.userId)
+    chatMessages.value = result.data || []
+    const stored = chatContacts.value.find((item) => Number(item.userId) === Number(contact.userId))
+    if (stored) stored.unreadCount = 0
+    await scrollChatToBottom()
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    chatLoading.value = false
+  }
+}
+
+async function sendChatMessage() {
+  const content = chatDraft.value.trim()
+  if (!content || !selectedChatContact.value || chatSending.value) return
+  chatSending.value = true
+  errorMessage.value = ''
+  try {
+    const result = await chatApi.send(selectedChatContact.value.userId, content)
+    chatMessages.value.push(result.data)
+    chatDraft.value = ''
+    const stored = chatContacts.value.find((item) => Number(item.userId) === Number(selectedChatContact.value.userId))
+    if (stored) {
+      stored.lastMessage = content
+      stored.lastMessageTime = formatContactTime(new Date())
+    }
+    await scrollChatToBottom()
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    chatSending.value = false
+  }
+}
+
+async function startChatWith(person) {
+  await openApplication('消息')
+  const contact = chatContacts.value.find((item) => Number(item.userId) === Number(person.userId))
+  if (contact) await selectChatContact(contact)
+  else errorMessage.value = '当前权限下无法与该同事发起聊天'
+}
+
+async function scrollChatToBottom() {
+  await nextTick()
+  const element = chatMessagesContainer.value
+  if (element) element.scrollTop = element.scrollHeight
+}
+
+function initial(name) {
+  return name?.trim()?.slice(0, 1) || '同'
+}
+
+function formatMessageTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value).replace('T', ' ').slice(0, 16)
+  const todayDate = new Date()
+  const sameDay = date.toDateString() === todayDate.toDateString()
+  return sameDay
+    ? date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatContactTime(value) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+async function loadApplications() {
+  applicationLoading.value = true
+  errorMessage.value = ''
+  try {
+    const requests = [applicationApi.mine(), applicationApi.types(), applicationApi.makeupOptions()]
+    if (hasPermission('approval:handle')) requests.push(applicationApi.pending(), applicationApi.handled())
+    const [mineResult, typeResult, makeupResult, pendingResult, handledResult] = await Promise.all(requests)
+    myApplications.value = mineResult.data || []
+    applicationTypes.value = typeResult.data || []
+    makeupOptions.value = makeupResult.data || []
+    pendingApplications.value = pendingResult?.data || []
+    handledApplications.value = handledResult?.data || []
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    applicationLoading.value = false
+  }
+}
+
+function openApplicationDialog(type = '') {
+  if (!hasPermission('approval:submit')) return
+  applicationDialog.value = {
+    visible: true,
+    form: { applicationType: type, attendanceRecordId: null, startTime: '', endTime: '', reason: '', remark: '' },
+    error: '',
+    submitting: false,
+  }
+}
+
+function changeApplicationType() {
+  if (applicationDialog.value.form.applicationType !== 'MAKEUP') {
+    applicationDialog.value.form.attendanceRecordId = null
+  }
+  applicationDialog.value.form.startTime = ''
+  applicationDialog.value.form.endTime = ''
+}
+
+function selectMakeupRecord() {
+  const selected = makeupOptions.value.find((item) => String(item.recordId) === String(applicationDialog.value.form.attendanceRecordId))
+  if (!selected) return
+  applicationDialog.value.form.startTime = dateTimeInput(selected.suggestedStartTime)
+  applicationDialog.value.form.endTime = dateTimeInput(selected.suggestedEndTime)
+}
+
+async function submitApplicationForm() {
+  const state = applicationDialog.value
+  state.error = ''
+  state.submitting = true
+  try {
+    const form = state.form
+    await applicationApi.submit({
+      applicationType: form.applicationType,
+      attendanceRecordId: form.applicationType === 'MAKEUP' ? Number(form.attendanceRecordId) : null,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      reason: form.reason.trim(),
+      remark: form.remark.trim() || null,
+      attachmentUrls: [],
+    })
+    state.visible = false
+    approvalTab.value = 'mine'
+    showNotice('申请提交成功')
+    await loadApplications()
+  } catch (error) {
+    state.error = error.message
+  } finally {
+    state.submitting = false
+  }
+}
+
+async function cancelApplication(item) {
+  if (!window.confirm('确定撤回这条申请吗？')) return
+  errorMessage.value = ''
+  try {
+    await applicationApi.cancel(item.applicationId)
+    showNotice('申请已撤回')
+    await loadApplications()
+  } catch (error) {
+    errorMessage.value = error.message
+  }
+}
+
+async function openApplicationDetail(item) {
+  applicationDetail.value = { visible: true, data: null, loading: true }
+  try {
+    const result = await applicationApi.detail(item.applicationId)
+    applicationDetail.value.data = result.data
+  } catch (error) {
+    applicationDetail.value.visible = false
+    errorMessage.value = error.message
+  } finally {
+    applicationDetail.value.loading = false
+  }
+}
+
+function openDecision(item, action) {
+  decisionDialog.value = { visible: true, action, item, comment: '', error: '', submitting: false }
+}
+
+async function submitDecision() {
+  const state = decisionDialog.value
+  const comment = state.comment.trim()
+  if (state.action === 'reject' && !comment) {
+    state.error = '驳回申请时请填写审批意见'
+    return
+  }
+  state.error = ''
+  state.submitting = true
+  try {
+    await applicationApi[state.action](state.item.taskId, comment)
+    state.visible = false
+    showNotice(state.action === 'approve' ? '申请已通过' : '申请已驳回')
+    await loadApplications()
+  } catch (error) {
+    state.error = error.message
+  } finally {
+    state.submitting = false
+  }
+}
+
+function dateTimeInput(value) {
+  return value ? String(value).slice(0, 16) : ''
+}
+
+function formatApplicationTime(value) {
+  return value ? String(value).replace('T', ' ').slice(0, 16) : '—'
+}
+
+function makeupOptionText(item) {
+  return `${item.attendanceDate} · ${item.ruleName || '考勤'} · ${item.issueLabel || '异常'} `
+}
+
+function applicationStatusClass(status) {
+  if (status === 'APPROVED') return 'approved'
+  if (status === 'REJECTED' || status === 'CANCELED') return 'rejected'
+  return 'processing'
+}
+
+function approvalDecisionLabel(decision) {
+  return { APPROVED: '通过', REJECTED: '驳回', CANCELED: '已撤回' }[decision] || '处理中'
+}
+
+function shortText(value, length = 24) {
+  if (!value) return '—'
+  return value.length > length ? `${value.slice(0, length)}…` : value
+}
+
 function departmentName(id) {
   return departments.value.find((item) => Number(item.deptId) === Number(id))?.deptName || '—'
 }
@@ -369,8 +685,8 @@ function departmentName(id) {
       <div class="profile-row"><button class="avatar avatar-button" title="个人设置" @click="openProfile">{{ avatarText }}</button></div>
       <label class="search-box"><span>⌕</span><input v-model="searchKeyword" type="search" placeholder="搜索应用" /></label>
       <nav class="main-nav">
-        <button v-for="item in navItems" :key="item.label" :class="['nav-item', { active: activeSection === item.label }]" @click="openApplication(item.label)">
-          <img v-if="item.icon" class="nav-icon" :src="item.icon" alt="" /><span v-else class="nav-icon workbench-icon">✦</span><span>{{ item.label }}</span>
+        <button v-for="item in availableNavItems" :key="item.label" :class="['nav-item', { active: activeSection === item.label }]" @click="openApplication(item.label)">
+          <img v-if="item.icon" class="nav-icon" :src="item.icon" alt="" /><span v-else class="nav-icon workbench-icon">✦</span><span>{{ item.label }}</span><span v-if="item.label === '消息' && totalUnread" class="nav-unread">{{ totalUnread > 99 ? '99+' : totalUnread }}</span>
         </button>
       </nav>
       <div class="sidebar-divider"></div>
@@ -401,6 +717,75 @@ function departmentName(id) {
           </div>
           <div v-else class="empty-state">没有找到“{{ searchKeyword }}”相关应用</div>
         </section>
+      </section>
+
+      <section v-else-if="activeSection === '通讯录'" class="communication-page contacts-page">
+        <div class="communication-heading"><div><p class="eyebrow">CONTACTS</p><h1>查找同事</h1><p>通过姓名、工号或手机号查找权限范围内的同事。</p></div></div>
+        <form class="colleague-search" @submit.prevent="searchColleagues">
+          <span>⌕</span><input v-model.trim="colleagueKeyword" placeholder="搜索姓名、工号或手机号" autofocus /><button :disabled="colleagueLoading">{{ colleagueLoading ? '搜索中…' : '搜索' }}</button>
+        </form>
+        <div v-if="errorMessage" class="api-error">{{ errorMessage }}</div>
+        <div v-if="colleagueLoading" class="communication-empty"><span class="empty-illustration">⌕</span><strong>正在查找同事…</strong></div>
+        <div v-else-if="colleagueResults.length" class="colleague-grid">
+          <article v-for="person in colleagueResults" :key="person.userId" class="colleague-card">
+            <div class="colleague-card-top"><span class="person-avatar large-person">{{ initial(person.realName) }}</span><div><h3>{{ person.realName }}</h3><p>{{ person.positionName || person.roleName || '员工' }}</p></div><span class="department-pill">{{ person.deptName || '未分配部门' }}</span></div>
+            <dl><div><dt>工号</dt><dd>{{ person.employeeNo || '—' }}</dd></div><div><dt>性别</dt><dd>{{ person.gender || '—' }}</dd></div><div><dt>手机号</dt><dd>{{ person.phone || '—' }}</dd></div><div><dt>邮箱</dt><dd>{{ person.email || '—' }}</dd></div><div><dt>入职日期</dt><dd>{{ person.hireDate || '—' }}</dd></div></dl>
+            <button v-if="hasPermission('chat:query')" class="contact-message-button" @click="startChatWith(person)"><span>✉</span> 发消息</button>
+          </article>
+        </div>
+        <div v-else-if="colleagueSearched" class="communication-empty"><span class="empty-illustration">无</span><strong>没有找到相关同事</strong><p>请尝试完整姓名、工号或手机号。</p></div>
+        <div v-else class="communication-empty"><span class="empty-illustration">人</span><strong>搜索并联系你的同事</strong><p>可查看部门、职位和联系方式。</p></div>
+      </section>
+
+      <section v-else-if="activeSection === '消息'" class="chat-page">
+        <aside class="chat-contact-panel">
+          <div class="chat-panel-heading"><div><h1>消息</h1><span v-if="totalUnread">{{ totalUnread }} 条未读</span></div><button title="刷新联系人" :disabled="chatLoading" @click="loadChatContacts">↻</button></div>
+          <label class="chat-contact-search"><span>⌕</span><input v-model="chatContactKeyword" placeholder="搜索联系人" /></label>
+          <div class="chat-contact-list">
+            <button v-for="contact in filteredChatContacts" :key="contact.userId" :class="['chat-contact-item', { active: selectedChatContact?.userId === contact.userId }]" @click="selectChatContact(contact)">
+              <span class="person-avatar">{{ initial(contact.realName) }}</span><span class="chat-contact-copy"><strong>{{ contact.realName }}</strong><small>{{ contact.lastMessage || `${contact.deptName || ''} ${contact.positionName || contact.roleName || ''}`.trim() || '同事' }}</small></span><span class="chat-contact-meta"><time>{{ contact.lastMessageTime || '' }}</time><b v-if="contact.unreadCount">{{ contact.unreadCount > 99 ? '99+' : contact.unreadCount }}</b></span>
+            </button>
+            <div v-if="!chatLoading && !filteredChatContacts.length" class="chat-list-empty">暂无联系人</div>
+          </div>
+        </aside>
+        <section v-if="selectedChatContact" class="conversation-panel">
+          <header class="conversation-heading"><span class="person-avatar">{{ initial(selectedChatContact.realName) }}</span><div><strong>{{ selectedChatContact.realName }}</strong><small>{{ selectedChatContact.deptName || '未分配部门' }} · {{ selectedChatContact.positionName || selectedChatContact.roleName || '员工' }}</small></div></header>
+          <div v-if="errorMessage" class="chat-error">{{ errorMessage }}</div>
+          <div ref="chatMessagesContainer" class="message-list">
+            <div v-if="chatLoading && !chatMessages.length" class="chat-loading">正在加载聊天记录…</div>
+            <div v-else-if="!chatMessages.length" class="conversation-empty"><span>✉</span><strong>开始聊天吧</strong><p>发送一条消息向 {{ selectedChatContact.realName }} 打个招呼。</p></div>
+            <div v-for="message in chatMessages" :key="message.messageId" :class="['message-row', { mine: Number(message.senderId) === Number(currentUser?.userId) }]">
+              <span class="person-avatar message-avatar">{{ initial(message.senderName || (Number(message.senderId) === Number(currentUser?.userId) ? displayName : selectedChatContact.realName)) }}</span><div class="message-content"><div class="message-bubble">{{ message.content }}</div><time>{{ formatMessageTime(message.createTime) }}</time></div>
+            </div>
+          </div>
+          <form class="message-composer" @submit.prevent="sendChatMessage"><textarea v-model="chatDraft" maxlength="2000" placeholder="输入消息，Enter 发送，Shift + Enter 换行" @keydown.enter.exact.prevent="sendChatMessage"></textarea><div><span>{{ chatDraft.length }}/2000</span><button :disabled="chatSending || !chatDraft.trim()">{{ chatSending ? '发送中…' : '发送' }}</button></div></form>
+        </section>
+        <section v-else class="no-conversation"><span>✉</span><h2>选择一个联系人</h2><p>从左侧联系人列表开始聊天。</p></section>
+      </section>
+
+      <section v-else-if="activeSection === '审批'" class="approval-page">
+        <div class="management-heading approval-heading">
+          <div><button class="back-button" @click="openApplication('工作台')">← 返回工作台</button><h1>审批中心</h1><p>提交申请并查看审批进度</p></div>
+          <div class="approval-heading-actions"><button class="refresh-button" :disabled="applicationLoading" @click="loadApplications"><span>↻</span>{{ applicationLoading ? '刷新中' : '刷新' }}</button><button v-if="hasPermission('approval:submit')" class="primary-button" @click="openApplicationDialog()">＋ 新建申请</button></div>
+        </div>
+        <div class="approval-tabs">
+          <button v-for="tab in approvalTabs" :key="tab.value" :class="{ active: approvalTab === tab.value }" @click="approvalTab = tab.value">{{ tab.label }}<span>{{ tab.count }}</span></button>
+        </div>
+        <div v-if="errorMessage" class="api-error">{{ errorMessage }}</div>
+        <div class="data-panel approval-panel">
+          <div v-if="applicationLoading" class="empty-state">正在加载审批数据…</div>
+          <table v-else>
+            <thead><tr><th v-if="approvalTab !== 'mine'">申请人</th><th v-if="approvalTab !== 'mine'">部门</th><th>申请类型</th><th>时间范围</th><th>申请原因</th><th>状态</th><th>提交时间</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr v-for="item in visibleApplications" :key="item.applicationId">
+                <td v-if="approvalTab !== 'mine'" class="name-cell"><span class="table-avatar">{{ initial(item.applicantName) }}</span>{{ item.applicantName }}</td><td v-if="approvalTab !== 'mine'">{{ item.applicantDeptName || '—' }}</td>
+                <td class="name-cell">{{ item.applicationTypeLabel || item.applicationType }}</td><td><div class="time-range"><span>{{ formatApplicationTime(item.startTime) }}</span><small>至 {{ formatApplicationTime(item.endTime) }}</small></div></td><td class="reason-cell" :title="item.reason">{{ shortText(item.reason) }}</td><td><span :class="['approval-status', applicationStatusClass(item.status)]">{{ item.statusLabel || item.currentTaskName || '处理中' }}</span></td><td>{{ formatApplicationTime(item.createTime) }}</td>
+                <td class="actions-cell"><button class="text-action" @click="openApplicationDetail(item)">详情</button><template v-if="approvalTab === 'mine'"><button v-if="item.canCancel" class="text-action danger" @click="cancelApplication(item)">撤回</button></template><template v-else-if="approvalTab === 'pending'"><button class="text-action success" @click="openDecision(item, 'approve')">通过</button><button class="text-action danger" @click="openDecision(item, 'reject')">驳回</button></template></td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="!applicationLoading && !visibleApplications.length" class="approval-empty"><span>✓</span><strong>{{ approvalTab === 'pending' ? '暂无待审批事项' : approvalTab === 'handled' ? '暂无已处理记录' : '还没有申请记录' }}</strong><p v-if="approvalTab === 'mine'">点击“新建申请”提交请假、加班或补卡申请。</p></div>
+        </div>
       </section>
 
       <section v-else-if="managedSections.includes(activeSection)" class="management-page">
@@ -461,6 +846,38 @@ function departmentName(id) {
         </div>
         <div v-if="dialog.error" class="form-error">{{ dialog.error }}</div>
         <div class="dialog-actions"><button type="button" @click="dialog.visible = false">取消</button><button class="primary-button" :disabled="loading">{{ loading ? '保存中…' : '保存' }}</button></div>
+      </form>
+    </div>
+    <div v-if="applicationDialog.visible" class="dialog-mask" @click.self="applicationDialog.visible = false">
+      <form class="data-dialog application-form-dialog" @submit.prevent="submitApplicationForm">
+        <div class="dialog-heading"><div><h2>新建申请</h2><p>提交后将进入部门主管审批流程</p></div><button type="button" @click="applicationDialog.visible = false">×</button></div>
+        <div class="form-grid">
+          <label class="full-field">申请类型<select v-model="applicationDialog.form.applicationType" required @change="changeApplicationType"><option value="" disabled>请选择申请类型</option><option v-for="item in applicationTypes" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
+          <label v-if="applicationDialog.form.applicationType === 'MAKEUP'" class="full-field">异常考勤记录<select v-model="applicationDialog.form.attendanceRecordId" required @change="selectMakeupRecord"><option :value="null" disabled>请选择需要补卡的记录</option><option v-for="item in makeupOptions" :key="item.recordId" :value="item.recordId">{{ makeupOptionText(item) }}</option></select><small class="field-tip">{{ makeupOptions.length ? '只能选择本人尚未申请补卡的异常记录' : '当前没有可补卡的缺勤、迟到、早退或缺卡记录' }}</small></label>
+          <label>{{ applicationDialog.form.applicationType === 'MAKEUP' ? '补卡签到时间' : '开始时间' }}<input v-model="applicationDialog.form.startTime" type="datetime-local" required /></label><label>{{ applicationDialog.form.applicationType === 'MAKEUP' ? '补卡签退时间' : '结束时间' }}<input v-model="applicationDialog.form.endTime" type="datetime-local" required /></label>
+          <label class="full-field">申请原因<textarea v-model.trim="applicationDialog.form.reason" maxlength="1000" placeholder="请详细说明申请原因" required></textarea></label><label class="full-field">备注<textarea v-model.trim="applicationDialog.form.remark" maxlength="1000" placeholder="选填"></textarea></label>
+        </div>
+        <div v-if="applicationDialog.error" class="form-error">{{ applicationDialog.error }}</div>
+        <div class="dialog-actions"><button type="button" @click="applicationDialog.visible = false">取消</button><button class="primary-button" :disabled="applicationDialog.submitting || (applicationDialog.form.applicationType === 'MAKEUP' && !makeupOptions.length)">{{ applicationDialog.submitting ? '提交中…' : '提交申请' }}</button></div>
+      </form>
+    </div>
+    <div v-if="applicationDetail.visible" class="dialog-mask" @click.self="applicationDetail.visible = false">
+      <div class="data-dialog application-detail-dialog">
+        <div class="dialog-heading"><div><h2>申请详情</h2><p>申请内容与审批记录</p></div><button type="button" @click="applicationDetail.visible = false">×</button></div>
+        <div v-if="applicationDetail.loading" class="empty-state">正在加载详情…</div>
+        <template v-else-if="applicationDetail.data">
+          <div class="application-detail-grid"><div><span>申请类型</span><strong>{{ applicationDetail.data.applicationTypeLabel }}</strong></div><div><span>当前状态</span><strong><i :class="['approval-status', applicationStatusClass(applicationDetail.data.status)]">{{ applicationDetail.data.statusLabel }}</i></strong></div><div><span>申请人</span><strong>{{ applicationDetail.data.applicantName }}</strong></div><div><span>所属部门</span><strong>{{ applicationDetail.data.applicantDeptName || '—' }}</strong></div><div><span>开始时间</span><strong>{{ formatApplicationTime(applicationDetail.data.startTime) }}</strong></div><div><span>结束时间</span><strong>{{ formatApplicationTime(applicationDetail.data.endTime) }}</strong></div><div class="detail-wide"><span>申请原因</span><p>{{ applicationDetail.data.reason }}</p></div><div v-if="applicationDetail.data.remark" class="detail-wide"><span>备注</span><p>{{ applicationDetail.data.remark }}</p></div></div>
+          <section v-if="applicationDetail.data.approvalHistory?.length" class="approval-history"><h3>审批记录</h3><div v-for="(history, index) in applicationDetail.data.approvalHistory" :key="index" class="history-item"><span class="history-dot"></span><div><strong>{{ history.taskName }} · {{ approvalDecisionLabel(history.decision) }}</strong><p>{{ history.approverName || history.approverUsername || '待处理' }}<template v-if="history.comment">：{{ history.comment }}</template></p><small>{{ formatApplicationTime(history.endTime || history.startTime) }}</small></div></div></section>
+        </template>
+      </div>
+    </div>
+    <div v-if="decisionDialog.visible" class="dialog-mask" @click.self="decisionDialog.visible = false">
+      <form class="data-dialog decision-dialog" @submit.prevent="submitDecision">
+        <div class="dialog-heading"><div><h2>{{ decisionDialog.action === 'approve' ? '通过申请' : '驳回申请' }}</h2><p>{{ decisionDialog.item?.applicantName }} · {{ decisionDialog.item?.applicationTypeLabel }}</p></div><button type="button" @click="decisionDialog.visible = false">×</button></div>
+        <div class="decision-summary"><span>申请时间</span><strong>{{ formatApplicationTime(decisionDialog.item?.startTime) }} 至 {{ formatApplicationTime(decisionDialog.item?.endTime) }}</strong><span>申请原因</span><p>{{ decisionDialog.item?.reason }}</p></div>
+        <label>审批意见<textarea v-model.trim="decisionDialog.comment" maxlength="500" :placeholder="decisionDialog.action === 'reject' ? '驳回时必须填写原因' : '选填'"></textarea></label>
+        <div v-if="decisionDialog.error" class="form-error">{{ decisionDialog.error }}</div>
+        <div class="dialog-actions"><button type="button" @click="decisionDialog.visible = false">取消</button><button :class="['primary-button', { 'danger-submit': decisionDialog.action === 'reject' }]" :disabled="decisionDialog.submitting">{{ decisionDialog.submitting ? '处理中…' : decisionDialog.action === 'approve' ? '确认通过' : '确认驳回' }}</button></div>
       </form>
     </div>
     <div v-if="profileDialog.visible" class="dialog-mask" @click.self="profileDialog.visible = false">

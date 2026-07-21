@@ -40,3 +40,26 @@ export const positionApi = {
   ...crudApi('/positions'),
   byDepartment: (deptId) => request.get(`/positions/dept/${deptId}`),
 }
+
+export const colleagueApi = {
+  search: (keyword) => request.get('/colleagues/search', { params: { keyword } }),
+}
+
+export const chatApi = {
+  contacts: () => request.get('/chat/contacts'),
+  messages: (contactId) => request.get(`/chat/messages/${contactId}`),
+  send: (receiverId, content) => request.post('/chat/send', { receiverId, content }),
+}
+
+export const applicationApi = {
+  types: () => request.get('/applications/types'),
+  makeupOptions: () => request.get('/applications/makeup-options'),
+  mine: () => request.get('/applications/mine'),
+  pending: () => request.get('/applications/tasks/pending'),
+  handled: () => request.get('/applications/tasks/handled'),
+  detail: (applicationId) => request.get(`/applications/${applicationId}`),
+  submit: (data) => request.post('/applications', data),
+  cancel: (applicationId) => request.post(`/applications/${applicationId}/cancel`),
+  approve: (taskId, comment = '') => request.post(`/applications/tasks/${taskId}/approve`, { comment }),
+  reject: (taskId, comment) => request.post(`/applications/tasks/${taskId}/reject`, { comment }),
+}
