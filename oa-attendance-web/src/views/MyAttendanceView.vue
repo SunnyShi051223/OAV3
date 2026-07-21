@@ -50,8 +50,12 @@
             <strong>{{ ruleCheckText(currentRule) }}</strong>
           </div>
           <div>
-            <span>签到窗口</span>
-            <strong>{{ formatTime(currentRule.checkInStartTime) || '-' }} 至 {{ formatTime(currentRule.checkInEndTime) || '-' }}</strong>
+            <span>正常签到窗口</span>
+            <strong>{{ formatTime(currentRule.workStartTime) || '-' }} 至 {{ formatTime(currentRule.checkInEndTime) || '-' }}</strong>
+          </div>
+          <div>
+            <span>迟到签到截止</span>
+            <strong>{{ formatTime(currentRule.workEndTime) || '-' }}</strong>
           </div>
           <div>
             <span>签退窗口</span>

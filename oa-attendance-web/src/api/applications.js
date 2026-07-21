@@ -8,6 +8,10 @@ export function listApplicationTypes() {
   return http.get('/applications/types');
 }
 
+export function listMakeupRecordOptions() {
+  return http.get('/applications/makeup-options');
+}
+
 export function listMyApplications() {
   return http.get('/applications/mine');
 }

@@ -160,6 +160,10 @@
             <span>状态</span>
             <span :class="['status-pill', statusClass(detail.status)]">{{ detail.statusLabel }}</span>
           </div>
+          <div v-if="detail.attendanceRecordId" class="detail-item">
+            <span>关联考勤记录</span>
+            <strong>#{{ detail.attendanceRecordId }}</strong>
+          </div>
           <div class="detail-item">
             <span>开始时间</span>
             <strong>{{ formatDateTime(detail.startTime) }}</strong>

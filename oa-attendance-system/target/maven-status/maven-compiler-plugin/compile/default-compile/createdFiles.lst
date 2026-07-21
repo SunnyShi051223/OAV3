@@ -123,6 +123,7 @@ com\oa\attendance\entity\AttRule.class
 com\oa\attendance\service\impl\DepartmentServiceImpl.class
 com\oa\attendance\service\impl\RoleServiceImpl.class
 com\oa\attendance\entity\PolicyDocumentIndex.class
+com\oa\attendance\vo\MakeupRecordOptionVO.class
 com\oa\attendance\vo\DepartmentTreeNodeVO.class
 com\oa\attendance\util\JwtAuthenticationFilter.class
 com\oa\attendance\mapper\AppApplicationMapper.class

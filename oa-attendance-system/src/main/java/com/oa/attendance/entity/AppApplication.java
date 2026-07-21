@@ -30,6 +30,9 @@ public class AppApplication {
     @TableField("application_type")
     private String applicationType;
 
+    @TableField("attendance_record_id")
+    private Long attendanceRecordId;
+
     @TableField("start_time")
     private LocalDateTime startTime;
 

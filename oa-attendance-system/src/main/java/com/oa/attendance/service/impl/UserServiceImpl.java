@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -190,39 +191,40 @@ public class UserServiceImpl implements IUserService {
         }
 
         // 检查工号是否已存在
-        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
-        wrapper.eq("employee_no", dto.getEmployeeNo()).eq("deleted", 0);
-        Long count = sysUserMapper.selectCount(wrapper);
+        String employeeNo = dto.getEmployeeNo().trim();
+        String username = dto.getUsername().trim();
+        long count = sysUserMapper.countByEmployeeNoIncludingDeleted(employeeNo);
         if (count > 0) {
-            return Result.error("工号已存在");
+            return Result.error(409, "工号已被使用（包含已删除用户），请更换工号");
         }
 
         // 检查用户名是否已存在
-        wrapper = new QueryWrapper<>();
-        wrapper.eq("username", dto.getUsername()).eq("deleted", 0);
-        count = sysUserMapper.selectCount(wrapper);
+        count = sysUserMapper.countByUsernameIncludingDeleted(username);
         if (count > 0) {
-            return Result.error("用户名已存在");
+            return Result.error(409, "登录账号已被使用（包含已删除用户），请更换账号");
         }
 
         // 检查关联数据是否存在
         if (dto.getDeptId() != null) {
             SysDepartment dept = sysDepartmentMapper.selectById(dto.getDeptId());
-            if (dept == null) {
-                return Result.error("部门不存在");
+            if (dept == null || Integer.valueOf(1).equals(dept.getDeleted())) {
+                return Result.error("部门不存在或已删除");
+            }
+            if (!Integer.valueOf(1).equals(dept.getStatus())) {
+                return Result.error("不能为用户选择已停用部门");
             }
         }
 
+        SysPosition position = null;
         if (dto.getPositionId() != null) {
-            SysPosition position = sysPositionMapper.selectById(dto.getPositionId());
-            if (position == null) {
-                return Result.error("职位不存在");
+            position = sysPositionMapper.selectById(dto.getPositionId());
+            if (position == null || Integer.valueOf(1).equals(position.getDeleted())) {
+                return Result.error("职位不存在或已删除");
             }
-        }
-
-        if (dto.getPositionId() != null) {
-            SysPosition position = sysPositionMapper.selectById(dto.getPositionId());
-            if (position != null && !dataScopeService.canAccessDepartment(position.getDeptId())) {
+            if (!dto.getDeptId().equals(position.getDeptId())) {
+                return Result.error("所选职位不属于当前部门");
+            }
+            if (!dataScopeService.canAccessDepartment(position.getDeptId())) {
                 return Result.error("只能选择本部门职位");
             }
         }
@@ -240,14 +242,23 @@ public class UserServiceImpl implements IUserService {
 
         SysUser user = new SysUser();
         BeanUtils.copyProperties(dto, user);
+        user.setEmployeeNo(employeeNo);
+        user.setUsername(username);
+        user.setRealName(dto.getRealName().trim());
         user.setPassword(passwordEncoder.encode(dto.getPassword())); // 加密密码
+        user.setStatus(dto.getStatus() == null ? 1 : dto.getStatus());
         user.setDeleted(0);
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
 
-        int result = sysUserMapper.insert(user);
+        int result;
+        try {
+            result = sysUserMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            return Result.error(409, "工号或登录账号已被其他用户使用，请刷新后重试");
+        }
         if (result > 0) {
-            return Result.success("创建成功");
+            return Result.success("创建成功", null);
         }
         return Result.error("创建失败");
     }

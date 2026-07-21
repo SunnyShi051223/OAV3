@@ -62,12 +62,22 @@
               <option v-for="t in types" :key="t.value" :value="t.value">{{ t.label }}</option>
             </select>
           </label>
+          <label v-if="createForm.applicationType === 'MAKEUP'">
+            需要补卡的考勤记录
+            <select v-model="createForm.attendanceRecordId" required @change="applyMakeupSuggestion">
+              <option :value="null">请选择异常考勤记录</option>
+              <option v-for="item in makeupOptions" :key="item.recordId" :value="item.recordId">
+                {{ makeupOptionLabel(item) }}
+              </option>
+            </select>
+            <small v-if="makeupOptions.length === 0">当前没有可补卡的缺勤、迟到、早退或缺卡记录</small>
+          </label>
           <label>
-            开始时间
+            {{ createForm.applicationType === 'MAKEUP' ? '补卡签到时间' : '开始时间' }}
             <input v-model="createForm.startTime" type="datetime-local" required />
           </label>
           <label>
-            结束时间
+            {{ createForm.applicationType === 'MAKEUP' ? '补卡签退时间' : '结束时间' }}
             <input v-model="createForm.endTime" type="datetime-local" required />
           </label>
           <label>
@@ -114,6 +124,10 @@
           <div class="detail-item">
             <span>状态</span>
             <span :class="['status-pill', statusClass(detail.status)]">{{ detail.statusLabel }}</span>
+          </div>
+          <div v-if="detail.attendanceRecordId" class="detail-item">
+            <span>关联考勤记录</span>
+            <strong>#{{ detail.attendanceRecordId }}</strong>
           </div>
           <div class="detail-item">
             <span>开始时间</span>
@@ -180,11 +194,12 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, watch } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import {
   listMyApplications,
   listApplicationTypes,
+  listMakeupRecordOptions,
   submitApplication as submitApp,
   getApplicationDetail,
   cancelApplication
@@ -192,6 +207,7 @@ import {
 
 const applications = ref([]);
 const types = ref([]);
+const makeupOptions = ref([]);
 const message = ref('');
 const error = ref('');
 const submitting = ref(false);
@@ -200,6 +216,7 @@ const attachmentText = ref('');
 
 const createForm = reactive({
   applicationType: '',
+  attendanceRecordId: null,
   startTime: '',
   endTime: '',
   reason: '',
@@ -214,12 +231,14 @@ onMounted(refresh);
 async function refresh() {
   error.value = '';
   try {
-    const [appRes, typeRes] = await Promise.all([
+    const [appRes, typeRes, makeupRes] = await Promise.all([
       listMyApplications(),
-      listApplicationTypes()
+      listApplicationTypes(),
+      listMakeupRecordOptions()
     ]);
     applications.value = appRes.data || [];
     types.value = typeRes.data || [];
+    makeupOptions.value = makeupRes.data || [];
   } catch (err) {
     error.value = err.message;
   }
@@ -241,6 +260,7 @@ async function submitApplication() {
     showCreateDialog.value = false;
     Object.assign(createForm, {
       applicationType: '',
+      attendanceRecordId: null,
       startTime: '',
       endTime: '',
       reason: '',
@@ -253,6 +273,29 @@ async function submitApplication() {
   } finally {
     submitting.value = false;
   }
+}
+
+watch(() => createForm.applicationType, (type) => {
+  if (type !== 'MAKEUP') {
+    createForm.attendanceRecordId = null;
+  }
+});
+
+function applyMakeupSuggestion() {
+  const option = makeupOptions.value.find(
+    (item) => String(item.recordId) === String(createForm.attendanceRecordId)
+  );
+  if (!option) return;
+  createForm.startTime = toDateTimeInput(option.suggestedStartTime);
+  createForm.endTime = toDateTimeInput(option.suggestedEndTime);
+}
+
+function makeupOptionLabel(item) {
+  return `${item.attendanceDate} · ${item.ruleName || '考勤规则'} · ${item.issueLabel || '异常'}`;
+}
+
+function toDateTimeInput(value) {
+  return value ? String(value).slice(0, 16) : '';
 }
 
 async function cancel(item) {

@@ -7,10 +7,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oa.attendance.dto.ApplicationCreateDTO;
 import com.oa.attendance.dto.ApprovalDecisionDTO;
 import com.oa.attendance.entity.AppApplication;
+import com.oa.attendance.entity.AttRecord;
+import com.oa.attendance.entity.AttRule;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.entity.SysUser;
 import com.oa.attendance.exception.BusinessException;
 import com.oa.attendance.mapper.AppApplicationMapper;
+import com.oa.attendance.mapper.AttRecordMapper;
+import com.oa.attendance.mapper.AttRuleMapper;
 import com.oa.attendance.mapper.SysUserMapper;
 import com.oa.attendance.service.DataScopeService;
 import com.oa.attendance.service.IAttendanceApprovalSyncService;
@@ -18,6 +22,7 @@ import com.oa.attendance.service.IApplicationService;
 import com.oa.attendance.vo.ApplicationTypeVO;
 import com.oa.attendance.vo.ApplicationVO;
 import com.oa.attendance.vo.ApprovalHistoryVO;
+import com.oa.attendance.vo.MakeupRecordOptionVO;
 import org.flowable.common.engine.impl.identity.Authentication;
 import org.flowable.common.engine.api.FlowableException;
 import org.flowable.common.engine.api.FlowableOptimisticLockingException;
@@ -54,12 +59,19 @@ public class ApplicationServiceImpl implements IApplicationService {
     private static final String STATUS_CANCELED = "CANCELED";
     private static final String ADMIN_GROUP = "approval_admin";
     private static final String DEPT_GROUP_PREFIX = "approval_dept_";
+    private static final String TYPE_MAKEUP = "MAKEUP";
 
     @Autowired
     private AppApplicationMapper applicationMapper;
 
     @Autowired
     private SysUserMapper userMapper;
+
+    @Autowired
+    private AttRecordMapper recordMapper;
+
+    @Autowired
+    private AttRuleMapper ruleMapper;
 
     @Autowired
     private DataScopeService dataScopeService;
@@ -87,14 +99,15 @@ public class ApplicationServiceImpl implements IApplicationService {
         if (applicant == null || applicant.getDeptId() == null) {
             throw new BusinessException(400, "请先完善所属部门后再提交申请");
         }
-        if (dto.getEndTime().isBefore(dto.getStartTime())) {
-            throw new BusinessException(400, "结束时间不能早于开始时间");
+        if (!dto.getEndTime().isAfter(dto.getStartTime())) {
+            throw new BusinessException(400, "结束时间必须晚于开始时间");
         }
 
         Map<String, String> typeLabels = loadTypeLabels();
         if (!typeLabels.containsKey(dto.getApplicationType())) {
             throw new BusinessException(400, "申请类型不存在或已停用");
         }
+        validateApplicationScope(dto, applicant);
 
         LocalDateTime now = LocalDateTime.now();
         AppApplication application = new AppApplication();
@@ -103,6 +116,7 @@ public class ApplicationServiceImpl implements IApplicationService {
         application.setApplicantName(applicant.getRealName());
         application.setApplicantDeptId(applicant.getDeptId());
         application.setApplicantDeptName(applicant.getDeptName());
+        application.setAttendanceRecordId(dto.getAttendanceRecordId());
         application.setAttachmentUrls(writeAttachments(dto.getAttachmentUrls()));
         application.setStatus(STATUS_PROCESSING);
         application.setCreateTime(now);
@@ -157,6 +171,15 @@ public class ApplicationServiceImpl implements IApplicationService {
     @Override
     public Result<List<ApplicationTypeVO>> listApplicationTypes() {
         return Result.success("查询成功", applicationMapper.selectEnabledApplicationTypes());
+    }
+
+    @Override
+    public Result<List<MakeupRecordOptionVO>> listMakeupRecordOptions() {
+        SysUser current = requireCurrentUser();
+        List<MakeupRecordOptionVO> options = recordMapper.selectCorrectableRecords(current.getUserId()).stream()
+                .map(this::toMakeupRecordOption)
+                .collect(Collectors.toList());
+        return Result.success("查询成功", options);
     }
 
     @Override
@@ -328,6 +351,86 @@ public class ApplicationServiceImpl implements IApplicationService {
                 || !approver.getDeptId().equals(application.getApplicantDeptId())) {
             throw new BusinessException(403, "只能处理本部门员工的申请");
         }
+    }
+
+    private void validateApplicationScope(ApplicationCreateDTO dto, SysUser applicant) {
+        if (!TYPE_MAKEUP.equals(dto.getApplicationType())) {
+            if (dto.getAttendanceRecordId() != null) {
+                throw new BusinessException(400, "只有补卡申请可以关联考勤记录");
+            }
+            return;
+        }
+        if (dto.getAttendanceRecordId() == null) {
+            throw new BusinessException(400, "请选择需要补卡的考勤记录");
+        }
+
+        AttRecord record = recordMapper.selectById(dto.getAttendanceRecordId());
+        if (record == null || !applicant.getUserId().equals(record.getUserId())) {
+            throw new BusinessException(400, "补卡记录不存在或不属于当前用户");
+        }
+        if (!isCorrectableRecord(record)) {
+            throw new BusinessException(400, "只能对缺勤、迟到、早退或缺卡记录发起补卡");
+        }
+        if (record.getAttendanceDate().isAfter(java.time.LocalDate.now())) {
+            throw new BusinessException(400, "不能对未来考勤记录发起补卡");
+        }
+        if (!record.getAttendanceDate().equals(dto.getStartTime().toLocalDate())
+                || !record.getAttendanceDate().equals(dto.getEndTime().toLocalDate())) {
+            throw new BusinessException(400, "补卡时间必须在所选考勤记录当天");
+        }
+        if (applicationMapper.countActiveMakeupApplications(record.getRecordId()) > 0) {
+            throw new BusinessException(409, "该考勤记录已有审批中或已通过的补卡申请");
+        }
+    }
+
+    private boolean isCorrectableRecord(AttRecord record) {
+        return "ABSENT".equals(record.getAttendanceStatus())
+                || "LATE".equals(record.getAttendanceStatus())
+                || "EARLY".equals(record.getAttendanceStatus())
+                || "ABSENT".equals(record.getCheckInStatus())
+                || "LATE".equals(record.getCheckInStatus())
+                || "EARLY".equals(record.getCheckOutStatus())
+                || record.getCheckInTime() == null
+                || record.getCheckOutTime() == null;
+    }
+
+    private MakeupRecordOptionVO toMakeupRecordOption(AttRecord record) {
+        MakeupRecordOptionVO vo = new MakeupRecordOptionVO();
+        BeanUtils.copyProperties(record, vo);
+        vo.setIssueLabel(makeupIssueLabel(record));
+
+        AttRule rule = ruleMapper.selectById(record.getRuleId());
+        LocalDateTime suggestedStart = record.getCheckInTime();
+        LocalDateTime suggestedEnd = record.getCheckOutTime();
+        if (rule != null) {
+            if (suggestedStart == null || "LATE".equals(record.getCheckInStatus())) {
+                suggestedStart = LocalDateTime.of(record.getAttendanceDate(), rule.getWorkStartTime());
+            }
+            if (suggestedEnd == null || "EARLY".equals(record.getCheckOutStatus())) {
+                suggestedEnd = LocalDateTime.of(record.getAttendanceDate(), rule.getWorkEndTime());
+            }
+        }
+        vo.setSuggestedStartTime(suggestedStart);
+        vo.setSuggestedEndTime(suggestedEnd);
+        return vo;
+    }
+
+    private String makeupIssueLabel(AttRecord record) {
+        List<String> issues = new ArrayList<>();
+        if ("ABSENT".equals(record.getAttendanceStatus())) {
+            issues.add("缺勤");
+        }
+        if (record.getCheckInTime() == null) {
+            issues.add("缺签到");
+        } else if ("LATE".equals(record.getCheckInStatus())) {
+            issues.add("迟到");
+        }
+        if (record.getCheckOutTime() == null) {
+            issues.add("缺签退");
+        } else if ("EARLY".equals(record.getCheckOutStatus())) {
+            issues.add("早退");
+        }
+        return String.join("、", issues);
     }
 
     private SysUser requireCurrentUser() {

@@ -15,6 +15,8 @@ public class ApplicationCreateDTO {
     @Size(max = 50, message = "申请类型不能超过50个字符")
     private String applicationType;
 
+    private Long attendanceRecordId;
+
     @NotNull(message = "开始时间不能为空")
     private LocalDateTime startTime;
 

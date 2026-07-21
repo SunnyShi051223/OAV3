@@ -42,12 +42,14 @@
           <input v-model="form.workEndTime" type="time" />
         </label>
         <label>
-          签到开始
-          <input v-model="form.checkInStartTime" type="time" />
+          正常签到窗口开始
+          <input :value="form.workStartTime" type="time" readonly />
+          <small>固定与上班时间一致；此时间至正常签到截止均记为正常签到。</small>
         </label>
         <label>
-          签到截止
+          正常签到窗口截止
           <input v-model="form.checkInEndTime" type="time" />
+          <small>超过此时间仍可签到，直到下班时间为止，但签到状态记为迟到。</small>
         </label>
         <label>
           签退开始
@@ -58,9 +60,9 @@
           <input v-model="form.checkOutEndTime" type="time" />
         </label>
         <label>
-          迟到宽限分钟
+          迟到宽限分钟（备用）
           <input v-model.number="form.lateThreshold" type="number" min="0" placeholder="默认 10" />
-          <small>上班时间后允许的缓冲时间。例：9:00 上班，填 10 表示 9:10 后算迟到。</small>
+          <small>仅在未配置正常签到窗口截止时生效，按上班时间加该分钟数判断迟到。</small>
         </label>
         <label>
           早退宽限分钟
@@ -189,8 +191,8 @@ function defaultForm() {
     effectiveEndDate: '',
     workStartTime: '09:00',
     workEndTime: '18:00',
-    checkInStartTime: '08:00',
-    checkInEndTime: '10:00',
+    checkInStartTime: '09:00',
+    checkInEndTime: '09:10',
     checkOutStartTime: '17:30',
     checkOutEndTime: '22:00',
     lateThreshold: 10,
@@ -272,6 +274,7 @@ function removeLocation(index) {
 function normalizePayload() {
   return {
     ...form,
+    checkInStartTime: form.workStartTime,
     deptId: form.deptId === '' ? null : form.deptId,
     effectiveStartDate: form.effectiveStartDate || null,
     effectiveEndDate: form.effectiveEndDate || null,

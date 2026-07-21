@@ -6,20 +6,20 @@
       <form class="crud-form" @submit.prevent="save">
         <label>
           工号
-          <input v-model.trim="form.employeeNo" placeholder="如 E0002" />
+          <input v-model.trim="form.employeeNo" placeholder="如 E1001，历史工号不可复用" required />
         </label>
         <label>
           登录账号
-          <input v-model.trim="form.username" :disabled="Boolean(form.userId)" placeholder="员工登录账号" />
+          <input v-model.trim="form.username" :disabled="Boolean(form.userId)" placeholder="员工登录账号" required />
         </label>
         <label v-if="!form.userId">
           初始密码
-          <input v-model.trim="form.password" type="text" placeholder="默认 123456，可修改" />
+          <input v-model.trim="form.password" type="text" placeholder="默认 123456，可修改" required />
           <small>创建后员工使用该密码登录；编辑用户不会修改密码。</small>
         </label>
         <label>
           姓名
-          <input v-model.trim="form.realName" placeholder="员工姓名" />
+          <input v-model.trim="form.realName" placeholder="员工姓名" required />
         </label>
         <label>
           手机号
@@ -31,7 +31,7 @@
         </label>
         <label>
           部门
-          <select v-model.number="form.deptId">
+          <select v-model.number="form.deptId" required>
             <option :value="null">选择部门</option>
             <option v-for="dept in departments" :key="dept.deptId" :value="dept.deptId">{{ dept.deptName }}</option>
           </select>
@@ -40,14 +40,14 @@
           职位
           <select v-model.number="form.positionId">
             <option :value="null">选择职位</option>
-            <option v-for="position in positions" :key="position.positionId" :value="position.positionId">
+            <option v-for="position in availablePositions" :key="position.positionId" :value="position.positionId">
               {{ position.positionName }}
             </option>
           </select>
         </label>
         <label>
           角色
-          <select v-model.number="form.roleId">
+          <select v-model.number="form.roleId" required>
             <option :value="null">选择角色</option>
             <option v-for="role in roles" :key="role.roleId" :value="role.roleId">{{ role.roleName }}</option>
           </select>
@@ -98,7 +98,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AppShell from '../components/AppShell.vue';
 import CrudLayout from '../components/CrudLayout.vue';
 import { createUser, deleteUser, listUsers, resetUserPassword, updateUser } from '../api/users';
@@ -113,6 +113,16 @@ const roles = ref([]);
 const message = ref('');
 const error = ref('');
 const form = reactive(defaultForm());
+const availablePositions = computed(() => {
+  if (!form.deptId) return [];
+  return positions.value.filter((position) => position.deptId === form.deptId);
+});
+
+watch(() => form.deptId, () => {
+  if (form.positionId && !availablePositions.value.some((item) => item.positionId === form.positionId)) {
+    form.positionId = null;
+  }
+});
 
 onMounted(load);
 

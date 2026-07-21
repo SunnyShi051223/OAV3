@@ -13,6 +13,7 @@ import com.oa.attendance.entity.Result;
 import com.oa.attendance.entity.SysDepartment;
 import com.oa.attendance.entity.SysUser;
 import com.oa.attendance.mapper.AttCheckLogMapper;
+import com.oa.attendance.mapper.AppApplicationMapper;
 import com.oa.attendance.mapper.AttDailySummaryMapper;
 import com.oa.attendance.mapper.AttRecordMapper;
 import com.oa.attendance.mapper.AttRuleLocationMapper;
@@ -73,6 +74,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
     private AttCheckLogMapper checkLogMapper;
 
     @Autowired
+    private AppApplicationMapper applicationMapper;
+
+    @Autowired
     private AttDailySummaryMapper summaryMapper;
 
     @Autowired
@@ -100,6 +104,10 @@ public class AttendanceServiceImpl implements IAttendanceService {
         BeanUtils.copyProperties(dto, rule);
         rule.setDeptId(targetDeptId);
         fillRuleDefaults(rule);
+        String timeError = validateRuleTime(rule);
+        if (timeError != null) {
+            return Result.error(timeError);
+        }
         rule.setCreatedBy(currentUser.getUserId());
         rule.setDeleted(0);
         rule.setCreateTime(LocalDateTime.now());
@@ -128,6 +136,10 @@ public class AttendanceServiceImpl implements IAttendanceService {
         BeanUtils.copyProperties(dto, rule);
         rule.setDeptId(targetDeptId);
         fillRuleDefaults(rule);
+        String timeError = validateRuleTime(rule);
+        if (timeError != null) {
+            return Result.error(timeError);
+        }
         rule.setDeleted(existing.getDeleted());
         rule.setCreatedBy(existing.getCreatedBy());
         rule.setUpdateTime(LocalDateTime.now());
@@ -189,6 +201,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
     @Override
     public Result<AttendanceRuleVO> getCurrentRule() {
         SysUser user = requireCurrentUser();
+        if (isOnApprovedLeave(user.getUserId(), LocalDateTime.now())) {
+            return Result.success("当前处于已批准请假时段", null);
+        }
         AttRule rule = ruleMapper.selectActiveRule(user.getDeptId(), LocalDate.now());
         return Result.success("查询成功", rule == null ? null : buildRuleVO(rule));
     }
@@ -196,6 +211,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
     @Override
     public Result<List<AttendanceRuleVO>> getAvailableRules() {
         SysUser user = requireCurrentUser();
+        if (isOnApprovedLeave(user.getUserId(), LocalDateTime.now())) {
+            return Result.success("当前处于已批准请假时段，无需打卡", Collections.emptyList());
+        }
         LocalDate today = LocalDate.now();
         List<AttendanceRuleVO> rules = ruleMapper.selectAvailableRules(user.getDeptId(), today).stream()
                 .filter(rule -> isWorkDay(rule, today))
@@ -316,6 +334,11 @@ public class AttendanceServiceImpl implements IAttendanceService {
         SysUser user = requireCurrentUser();
         LocalDateTime now = LocalDateTime.now();
         LocalDate today = now.toLocalDate();
+        if (isOnApprovedLeave(user.getUserId(), now)) {
+            writeLog(user, null, null, dto, checkType, now, null, null, 0,
+                    "当前处于已批准请假时段，无需打卡");
+            return Result.error("当前处于已批准请假时段，无需打卡");
+        }
         AttRule rule = resolveCheckRule(dto, user, today);
         if (rule == null) {
             writeLog(user, null, null, dto, checkType, now, null, null, 0, "请选择今日可用的考勤规则");
@@ -371,7 +394,7 @@ public class AttendanceServiceImpl implements IAttendanceService {
     }
 
     private void applyCheckIn(AttRecord record, AttRule rule, AttendanceCheckDTO dto, LocalDateTime now, ValidationResult validation) {
-        String status = now.toLocalTime().isAfter(rule.getWorkStartTime().plusMinutes(defaultInt(rule.getLateThreshold(), 10))) ? LATE : NORMAL;
+        String status = now.toLocalTime().isAfter(resolveLateLine(rule)) ? LATE : NORMAL;
         record.setCheckInTime(now);
         record.setCheckInStatus(status);
         record.setAttendanceStatus(status);
@@ -493,17 +516,24 @@ public class AttendanceServiceImpl implements IAttendanceService {
     private WindowResult validateWindow(AttRule rule, String checkType, LocalTime now) {
         WindowResult result = new WindowResult();
         result.success = true;
-        LocalTime start = CHECK_IN.equals(checkType) ? rule.getCheckInStartTime() : rule.getCheckOutStartTime();
-        LocalTime end = CHECK_IN.equals(checkType) ? rule.getCheckInEndTime() : rule.getCheckOutEndTime();
+        LocalTime start = CHECK_IN.equals(checkType) ? rule.getWorkStartTime() : rule.getCheckOutStartTime();
+        LocalTime end = CHECK_IN.equals(checkType) ? rule.getWorkEndTime() : rule.getCheckOutEndTime();
         if (start != null && now.isBefore(start)) {
             result.success = false;
-            result.reason = "未到允许打卡时间";
+            result.reason = CHECK_IN.equals(checkType) ? "未到上班时间，暂不能签到" : "未到允许签退时间";
         }
         if (end != null && now.isAfter(end)) {
             result.success = false;
-            result.reason = "已超过允许打卡时间";
+            result.reason = CHECK_IN.equals(checkType) ? "已超过下班时间，不能签到" : "已超过允许签退时间";
         }
         return result;
+    }
+
+    private LocalTime resolveLateLine(AttRule rule) {
+        if (rule.getCheckInEndTime() != null) {
+            return rule.getCheckInEndTime();
+        }
+        return rule.getWorkStartTime().plusMinutes(defaultInt(rule.getLateThreshold(), 10));
     }
 
     private void upsertSummary(AttRecord record, AttRule rule) {
@@ -633,6 +663,10 @@ public class AttendanceServiceImpl implements IAttendanceService {
         return rule;
     }
 
+    private boolean isOnApprovedLeave(Long userId, LocalDateTime checkTime) {
+        return applicationMapper.countApprovedLeaveAt(userId, checkTime) > 0;
+    }
+
     private Long normalizeRuleDept(Long deptId) {
         if (dataScopeService.hasDepartmentDataAccess()) {
             return dataScopeService.getCurrentDeptId();
@@ -666,6 +700,9 @@ public class AttendanceServiceImpl implements IAttendanceService {
     }
 
     private void fillRuleDefaults(AttRule rule) {
+        if (rule.getWorkStartTime() != null) {
+            rule.setCheckInStartTime(rule.getWorkStartTime());
+        }
         if (rule.getLateThreshold() == null) {
             rule.setLateThreshold(10);
         }
@@ -687,6 +724,30 @@ public class AttendanceServiceImpl implements IAttendanceService {
         if (isBlank(rule.getWorkDays())) {
             rule.setWorkDays("[1,2,3,4,5]");
         }
+    }
+
+    private String validateRuleTime(AttRule rule) {
+        if (rule.getWorkStartTime() == null || rule.getWorkEndTime() == null) {
+            return "上班时间和下班时间不能为空";
+        }
+        if (!rule.getWorkStartTime().isBefore(rule.getWorkEndTime())) {
+            return "上班时间必须早于下班时间";
+        }
+        if (rule.getCheckInStartTime() != null && !isBetweenInclusive(rule.getCheckInStartTime(), rule.getWorkStartTime(), rule.getWorkEndTime())) {
+            return "正常签到开始必须在上班时间至下班时间内";
+        }
+        if (rule.getCheckInEndTime() != null && !isBetweenInclusive(rule.getCheckInEndTime(), rule.getWorkStartTime(), rule.getWorkEndTime())) {
+            return "正常签到截止必须在上班时间至下班时间内";
+        }
+        if (rule.getCheckInStartTime() != null && rule.getCheckInEndTime() != null
+                && rule.getCheckInStartTime().isAfter(rule.getCheckInEndTime())) {
+            return "正常签到开始不能晚于正常签到截止";
+        }
+        return null;
+    }
+
+    private boolean isBetweenInclusive(LocalTime value, LocalTime start, LocalTime end) {
+        return !value.isBefore(start) && !value.isAfter(end);
     }
 
     private boolean isWorkDay(AttRule rule, LocalDate date) {

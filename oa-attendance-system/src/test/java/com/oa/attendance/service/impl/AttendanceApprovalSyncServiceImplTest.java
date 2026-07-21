@@ -97,6 +97,7 @@ class AttendanceApprovalSyncServiceImplTest {
     void approvedMakeupFillsMissingPunchesAndClearsAbsence() {
         AttRecord record = absentRecord();
         AppApplication makeup = application("MAKEUP", DATE.atTime(9, 0), DATE.atTime(18, 0));
+        makeup.setAttendanceRecordId(record.getRecordId());
         when(applicationMapper.selectList(any())).thenReturn(Collections.singletonList(makeup));
 
         service.refreshRecordAndSummary(record, rule);
@@ -109,6 +110,20 @@ class AttendanceApprovalSyncServiceImplTest {
         assertEquals("NORMAL", record.getAttendanceStatus());
         assertEquals(540, record.getWorkMinutes());
         assertEquals(0, summary.getIsAbsent());
+    }
+
+    @Test
+    void approvedMakeupIgnoresApplicationForAnotherRuleRecord() {
+        AttRecord record = absentRecord();
+        AppApplication makeup = application("MAKEUP", DATE.atTime(9, 0), DATE.atTime(18, 0));
+        makeup.setAttendanceRecordId(999L);
+        when(applicationMapper.selectList(any())).thenReturn(Collections.singletonList(makeup));
+
+        service.refreshRecordAndSummary(record, rule);
+
+        AttDailySummary summary = insertedSummary();
+        assertEquals("ABSENT", record.getAttendanceStatus());
+        assertEquals(1, summary.getIsAbsent());
     }
 
     private AttRecord absentRecord() {

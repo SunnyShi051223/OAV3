@@ -51,6 +51,18 @@ public class AttendanceApprovalSyncServiceImpl implements IAttendanceApprovalSyn
             return;
         }
 
+        if (MAKEUP.equals(application.getApplicationType()) && application.getAttendanceRecordId() != null) {
+            AttRecord record = recordMapper.selectById(application.getAttendanceRecordId());
+            if (record == null || !application.getApplicantId().equals(record.getUserId())) {
+                return;
+            }
+            AttRule rule = ruleMapper.selectById(record.getRuleId());
+            if (rule != null) {
+                refreshRecordAndSummary(record, rule);
+            }
+            return;
+        }
+
         LocalDate cursor = application.getStartTime().toLocalDate();
         LocalDate endDate = application.getEndTime().toLocalDate();
         while (!cursor.isAfter(endDate)) {
@@ -73,7 +85,7 @@ public class AttendanceApprovalSyncServiceImpl implements IAttendanceApprovalSyn
     @Override
     public void refreshRecordAndSummary(AttRecord record, AttRule rule) {
         List<AppApplication> applications = selectApprovedApplications(
-                record.getUserId(), record.getAttendanceDate());
+                record.getUserId(), record.getAttendanceDate(), record.getRecordId());
 
         applyMakeupApplications(record, rule, applications);
 
@@ -131,7 +143,7 @@ public class AttendanceApprovalSyncServiceImpl implements IAttendanceApprovalSyn
         return summary;
     }
 
-    private List<AppApplication> selectApprovedApplications(Long userId, LocalDate date) {
+    private List<AppApplication> selectApprovedApplications(Long userId, LocalDate date, Long selectingRecordId) {
         LocalDateTime dayStart = date.atStartOfDay();
         LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
         QueryWrapper<AppApplication> wrapper = new QueryWrapper<>();
@@ -141,13 +153,21 @@ public class AttendanceApprovalSyncServiceImpl implements IAttendanceApprovalSyn
                 .lt("start_time", dayEnd)
                 .gt("end_time", dayStart)
                 .orderByAsc("create_time");
-        return applicationMapper.selectList(wrapper);
+        List<AppApplication> applications = new ArrayList<>(applicationMapper.selectList(wrapper));
+        applications.removeIf(application -> MAKEUP.equals(application.getApplicationType())
+                && application.getAttendanceRecordId() != null
+                && !application.getAttendanceRecordId().equals(selectingRecordId));
+        return applications;
     }
 
     private void applyMakeupApplications(AttRecord record, AttRule rule,
                                          List<AppApplication> applications) {
         for (AppApplication application : applications) {
             if (!MAKEUP.equals(application.getApplicationType())) {
+                continue;
+            }
+            if (application.getAttendanceRecordId() != null
+                    && !application.getAttendanceRecordId().equals(record.getRecordId())) {
                 continue;
             }
             LocalDate date = record.getAttendanceDate();
@@ -158,11 +178,13 @@ public class AttendanceApprovalSyncServiceImpl implements IAttendanceApprovalSyn
                     ? application.getEndTime()
                     : LocalDateTime.of(date, rule.getWorkEndTime());
 
-            if (record.getCheckInTime() == null) {
+            boolean absent = ABSENT.equals(record.getAttendanceStatus());
+            if (record.getCheckInTime() == null || LATE.equals(record.getCheckInStatus()) || absent) {
                 record.setCheckInTime(checkIn);
                 record.setCheckInStatus(NORMAL);
             }
-            if (record.getCheckOutTime() == null && !checkOut.isBefore(record.getCheckInTime())) {
+            if ((record.getCheckOutTime() == null || EARLY.equals(record.getCheckOutStatus()) || absent)
+                    && !checkOut.isBefore(record.getCheckInTime())) {
                 record.setCheckOutTime(checkOut);
                 record.setCheckOutStatus(NORMAL);
             }

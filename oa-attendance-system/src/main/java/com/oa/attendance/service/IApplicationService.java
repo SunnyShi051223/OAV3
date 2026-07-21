@@ -5,6 +5,7 @@ import com.oa.attendance.dto.ApprovalDecisionDTO;
 import com.oa.attendance.entity.Result;
 import com.oa.attendance.vo.ApplicationTypeVO;
 import com.oa.attendance.vo.ApplicationVO;
+import com.oa.attendance.vo.MakeupRecordOptionVO;
 
 import java.util.List;
 
@@ -16,6 +17,8 @@ public interface IApplicationService {
     Result<ApplicationVO> getDetail(Long applicationId);
 
     Result<List<ApplicationTypeVO>> listApplicationTypes();
+
+    Result<List<MakeupRecordOptionVO>> listMakeupRecordOptions();
 
     Result<List<ApplicationVO>> listPendingTasks();
 

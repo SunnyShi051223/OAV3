@@ -6,6 +6,7 @@ import com.oa.attendance.entity.Result;
 import com.oa.attendance.service.IApplicationService;
 import com.oa.attendance.vo.ApplicationTypeVO;
 import com.oa.attendance.vo.ApplicationVO;
+import com.oa.attendance.vo.MakeupRecordOptionVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -39,6 +40,12 @@ public class ApplicationController {
     @PreAuthorize("hasAuthority('approval:self')")
     public Result<List<ApplicationTypeVO>> listApplicationTypes() {
         return applicationService.listApplicationTypes();
+    }
+
+    @GetMapping("/makeup-options")
+    @PreAuthorize("hasAuthority('approval:self')")
+    public Result<List<MakeupRecordOptionVO>> listMakeupRecordOptions() {
+        return applicationService.listMakeupRecordOptions();
     }
 
     @GetMapping("/mine")

@@ -21,6 +21,12 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
     @Select("SELECT * FROM sys_user WHERE (username = #{username} OR employee_no = #{username}) AND deleted = 0")
     SysUser findByUsername(@Param("username") String username);
 
+    @Select("SELECT COUNT(*) FROM sys_user WHERE employee_no = #{employeeNo}")
+    long countByEmployeeNoIncludingDeleted(@Param("employeeNo") String employeeNo);
+
+    @Select("SELECT COUNT(*) FROM sys_user WHERE username = #{username}")
+    long countByUsernameIncludingDeleted(@Param("username") String username);
+
     /**
      * 根据用户ID查询用户详细信息
      */

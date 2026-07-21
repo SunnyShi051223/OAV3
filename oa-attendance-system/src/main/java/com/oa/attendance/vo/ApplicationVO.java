@@ -14,6 +14,7 @@ public class ApplicationVO {
     private String applicantDeptName;
     private String applicationType;
     private String applicationTypeLabel;
+    private Long attendanceRecordId;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private String reason;
