@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { applicationApi } from '../api/oa'
+import ListPagination from './ListPagination.vue'
 
 const props = defineProps({ permissions: { type: Array, default: () => [] }, initialType: { type: String, default: '' } })
 const emit = defineEmits(['back', 'preset-consumed'])
@@ -16,6 +17,8 @@ const error = ref('')
 const formDialog = ref({ visible: false, form: {}, error: '', submitting: false })
 const detailDialog = ref({ visible: false, data: null, loading: false })
 const decisionDialog = ref({ visible: false, action: 'approve', item: null, comment: '', error: '', submitting: false })
+const currentPage = ref(1)
+const pageSize = 6
 
 const canHandle = computed(() => props.permissions.includes('approval:handle'))
 const canSubmit = computed(() => props.permissions.includes('approval:submit'))
@@ -27,6 +30,18 @@ const tabs = computed(() => [
   ] : []),
 ])
 const visibleApplications = computed(() => tab.value === 'pending' ? pendingApplications.value : tab.value === 'handled' ? handledApplications.value : myApplications.value)
+const paginatedApplications = computed(() => visibleApplications.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
+const leaveDuration = computed(() => {
+  const form = formDialog.value.form
+  if (form.applicationType !== 'LEAVE' || !form.startTime || !form.endTime) return { valid: true, text: '选择开始时间和结束时间后自动计算' }
+  const start = new Date(form.startTime).getTime()
+  const end = new Date(form.endTime).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return { valid: false, text: '时间范围无效' }
+  const hours = (end - start) / 3600000
+  const days = hours / 24
+  const formatNumber = (value) => Number(value.toFixed(2)).toString()
+  return { valid: true, text: `${formatNumber(days)} 天（${formatNumber(hours)} 小时）` }
+})
 
 async function load() {
   loading.value = true
@@ -68,6 +83,10 @@ function selectMakeupRecord() {
 async function submitForm() {
   const state = formDialog.value
   state.error = ''
+  if (state.form.applicationType === 'LEAVE' && !leaveDuration.value.valid) {
+    state.error = '结束时间必须晚于开始时间'
+    return
+  }
   state.submitting = true
   try {
     await applicationApi.submit({
@@ -149,6 +168,10 @@ async function consumePreset(type) {
 }
 
 watch(() => props.initialType, consumePreset)
+watch(tab, () => { currentPage.value = 1 })
+watch(() => visibleApplications.value.length, (total) => {
+  currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(total / pageSize)))
+})
 onMounted(async () => {
   await load()
   await consumePreset(props.initialType)
@@ -166,12 +189,13 @@ onMounted(async () => {
     <div class="data-panel approval-panel">
       <div v-if="loading" class="empty-state">正在加载审批数据…</div>
       <table v-else><thead><tr><th v-if="tab !== 'mine'">申请人</th><th v-if="tab !== 'mine'">部门</th><th>申请类型</th><th>时间范围</th><th>申请原因</th><th>状态</th><th>提交时间</th><th>操作</th></tr></thead><tbody>
-        <tr v-for="item in visibleApplications" :key="item.applicationId">
+        <tr v-for="item in paginatedApplications" :key="item.applicationId">
           <td v-if="tab !== 'mine'" class="name-cell"><span class="table-avatar">{{ initial(item.applicantName) }}</span>{{ item.applicantName }}</td><td v-if="tab !== 'mine'">{{ item.applicantDeptName || '—' }}</td>
           <td class="name-cell">{{ item.applicationTypeLabel || item.applicationType }}</td><td><div class="time-range"><span>{{ formatTime(item.startTime) }}</span><small>至 {{ formatTime(item.endTime) }}</small></div></td><td class="reason-cell" :title="item.reason">{{ shortText(item.reason) }}</td><td><span :class="['approval-status', statusClass(item.status)]">{{ item.statusLabel || item.currentTaskName || '处理中' }}</span></td><td>{{ formatTime(item.createTime) }}</td>
           <td class="actions-cell"><button class="text-action" @click="openDetail(item)">详情</button><template v-if="tab === 'mine'"><button v-if="item.canCancel" class="text-action danger" @click="cancel(item)">撤回</button></template><template v-else-if="tab === 'pending'"><button class="text-action success" @click="openDecision(item, 'approve')">通过</button><button class="text-action danger" @click="openDecision(item, 'reject')">驳回</button></template></td>
         </tr>
       </tbody></table>
+      <ListPagination v-if="!loading" v-model:page="currentPage" :total="visibleApplications.length" :page-size="pageSize" />
       <div v-if="!loading && !visibleApplications.length" class="approval-empty"><span>✓</span><strong>{{ tab === 'pending' ? '暂无待审批事项' : tab === 'handled' ? '暂无已处理记录' : '还没有申请记录' }}</strong><p v-if="tab === 'mine'">点击“新建申请”提交请假、加班或补卡申请。</p></div>
     </div>
   </section>
@@ -182,7 +206,8 @@ onMounted(async () => {
       <div class="form-grid">
         <label class="full-field">申请类型<select v-model="formDialog.form.applicationType" required @change="changeType"><option value="" disabled>请选择申请类型</option><option v-for="item in applicationTypes" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
         <label v-if="formDialog.form.applicationType === 'MAKEUP'" class="full-field">异常考勤记录<select v-model="formDialog.form.attendanceRecordId" required @change="selectMakeupRecord"><option :value="null" disabled>请选择需要补卡的记录</option><option v-for="item in makeupOptions" :key="item.recordId" :value="item.recordId">{{ makeupOptionText(item) }}</option></select><small class="field-tip">{{ makeupOptions.length ? '只能选择本人尚未申请补卡的异常记录' : '当前没有可补卡的缺勤、迟到、早退或缺卡记录' }}</small></label>
-        <label>{{ formDialog.form.applicationType === 'MAKEUP' ? '补卡签到时间' : '开始时间' }}<input v-model="formDialog.form.startTime" type="datetime-local" required /></label><label>{{ formDialog.form.applicationType === 'MAKEUP' ? '补卡签退时间' : '结束时间' }}<input v-model="formDialog.form.endTime" type="datetime-local" required /></label>
+        <label>{{ formDialog.form.applicationType === 'MAKEUP' ? '补卡签到时间' : '开始时间' }}<input v-model="formDialog.form.startTime" type="datetime-local" required /></label><label>{{ formDialog.form.applicationType === 'MAKEUP' ? '补卡签退时间' : '结束时间' }}<input v-model="formDialog.form.endTime" type="datetime-local" :min="formDialog.form.startTime || undefined" required /></label>
+        <label v-if="formDialog.form.applicationType === 'LEAVE'" class="full-field">请假天数<input class="leave-duration-input" :class="{ invalid: !leaveDuration.valid }" :value="leaveDuration.text" readonly tabindex="-1" /></label>
         <label class="full-field">申请原因<textarea v-model.trim="formDialog.form.reason" maxlength="1000" placeholder="请详细说明申请原因" required></textarea></label><label class="full-field">备注<textarea v-model.trim="formDialog.form.remark" maxlength="1000" placeholder="选填"></textarea></label>
       </div>
       <div v-if="formDialog.error" class="form-error">{{ formDialog.error }}</div><div class="dialog-actions"><button type="button" @click="formDialog.visible = false">取消</button><button class="primary-button" :disabled="formDialog.submitting || (formDialog.form.applicationType === 'MAKEUP' && !makeupOptions.length)">{{ formDialog.submitting ? '提交中…' : '提交申请' }}</button></div>
@@ -204,3 +229,8 @@ onMounted(async () => {
     <div v-if="decisionDialog.error" class="form-error">{{ decisionDialog.error }}</div><div class="dialog-actions"><button type="button" @click="decisionDialog.visible = false">取消</button><button :class="['primary-button', { 'danger-submit': decisionDialog.action === 'reject' }]" :disabled="decisionDialog.submitting">{{ decisionDialog.submitting ? '处理中…' : decisionDialog.action === 'approve' ? '确认通过' : '确认驳回' }}</button></div>
   </form></div>
 </template>
+
+<style scoped>
+.leave-duration-input { border-color: #e2e5e9 !important; color: #646a73 !important; background: #f2f3f5 !important; box-shadow: none !important; cursor: not-allowed; }
+.leave-duration-input.invalid { border-color: #f1b5b1 !important; color: #d83931 !important; }
+</style>

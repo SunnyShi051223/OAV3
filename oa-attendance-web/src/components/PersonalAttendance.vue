@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { attendanceApi } from '../api/oa'
+import ListPagination from './ListPagination.vue'
 
 defineEmits(['back'])
 
@@ -15,6 +16,8 @@ const message = ref('')
 const error = ref('')
 const checkForm = ref({ latitude: null, longitude: null, locationAddress: '', wifiSsid: '', wifiBssid: '' })
 const clock = ref(new Date())
+const currentPage = ref(1)
+const pageSize = 10
 let clockTimer
 
 const selectedRule = computed(() => rules.value.find((item) => Number(item.ruleId) === Number(selectedRuleId.value)) || null)
@@ -22,6 +25,13 @@ const todayRecord = computed(() => todayRecords.value.find((item) => Number(item
 const currentStatus = computed(() => todayRecord.value?.attendanceStatus || (selectedRule.value ? 'PENDING' : 'NO_RULE'))
 const dateText = computed(() => clock.value.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' }))
 const timeText = computed(() => clock.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }))
+const monthRecords = computed(() => monthData.value.calendar || [])
+const paginatedMonthRecords = computed(() => monthRecords.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
+
+watch(selectedMonth, () => { currentPage.value = 1 })
+watch(() => monthRecords.value.length, (total) => {
+  currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(total / pageSize)))
+})
 
 async function load() {
   loading.value = true
@@ -136,6 +146,6 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
     </div>
     <div class="attendance-month-heading"><div><p class="eyebrow">MONTHLY ATTENDANCE</p><h2>月度考勤</h2></div><label><input v-model="selectedMonth" type="month" /><button :disabled="loading" @click="loadMonth">查询</button></label></div>
     <div class="attendance-metrics"><article><span>累计工时</span><strong>{{ minutesToHours(monthData.workMinutes) }}</strong></article><article><span>迟到</span><strong>{{ monthData.lateCount || 0 }}<small> 次</small></strong></article><article><span>缺勤</span><strong>{{ monthData.absentCount || 0 }}<small> 次</small></strong></article><article><span>加班</span><strong>{{ monthData.overtimeCount || 0 }}<small> 次</small></strong></article><article><span>加班时长</span><strong>{{ minutesToHours(monthData.overtimeMinutes) }}</strong></article><article><span>请假</span><strong>{{ monthData.leaveCount || 0 }}<small> 次</small></strong></article></div>
-    <div class="data-panel attendance-records"><table><thead><tr><th>日期</th><th>考勤规则</th><th>签到</th><th>签退</th><th>状态</th><th>工作时长</th><th>加班时长</th></tr></thead><tbody><tr v-for="item in monthData.calendar || []" :key="item.recordId"><td class="name-cell">{{ item.attendanceDate }}</td><td>{{ item.ruleName || '—' }}</td><td>{{ formatCheckTime(item.checkInTime) }}</td><td>{{ formatCheckTime(item.checkOutTime) }}</td><td><span :class="['attendance-status-tag', statusClass(item.attendanceStatus)]">{{ statusLabel(item.attendanceStatus) }}</span></td><td>{{ minutesToHours(item.workMinutes) }}</td><td>{{ minutesToHours(item.overtimeMinutes) }}</td></tr></tbody></table><div v-if="!loading && !(monthData.calendar || []).length" class="approval-empty"><span>勤</span><strong>本月暂无考勤记录</strong><p>完成签到后，记录会自动显示在这里。</p></div></div>
+    <div class="data-panel attendance-records"><table><thead><tr><th>日期</th><th>考勤规则</th><th>签到</th><th>签退</th><th>状态</th><th>工作时长</th><th>加班时长</th></tr></thead><tbody><tr v-for="item in paginatedMonthRecords" :key="item.recordId"><td class="name-cell">{{ item.attendanceDate }}</td><td>{{ item.ruleName || '—' }}</td><td>{{ formatCheckTime(item.checkInTime) }}</td><td>{{ formatCheckTime(item.checkOutTime) }}</td><td><span :class="['attendance-status-tag', statusClass(item.attendanceStatus)]">{{ statusLabel(item.attendanceStatus) }}</span></td><td>{{ minutesToHours(item.workMinutes) }}</td><td>{{ minutesToHours(item.overtimeMinutes) }}</td></tr></tbody></table><ListPagination v-model:page="currentPage" :total="monthRecords.length" :page-size="pageSize" /><div v-if="!loading && !monthRecords.length" class="approval-empty"><span>勤</span><strong>本月暂无考勤记录</strong><p>完成签到后，记录会自动显示在这里。</p></div></div>
   </section>
 </template>

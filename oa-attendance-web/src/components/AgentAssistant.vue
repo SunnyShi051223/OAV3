@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onBeforeUnmount, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const emit = defineEmits(['navigate'])
 const opened = ref(false)
@@ -7,8 +7,15 @@ const draft = ref('')
 const thinking = ref(false)
 const messageList = ref(null)
 const messages = ref([])
+const launcher = ref(null)
+const launcherPosition = ref(null)
+const dragging = ref(false)
 let replyTimer
 let nextId = 1
+let dragState = null
+let suppressLauncherClick = false
+
+const positionStorageKey = 'oa-agent-launcher-position'
 
 const shortcuts = ['我要请假', '帮我补卡', '我要打卡', '搜索制度']
 
@@ -56,14 +63,86 @@ function confirmAction(action) {
 function cancelAction(message) { message.cancelled = true }
 function navigate(target) { minimize(); emit('navigate', target) }
 
+function clampPosition(left, top) {
+  const width = launcher.value?.offsetWidth || 104
+  const height = launcher.value?.offsetHeight || 46
+  const padding = 12
+  return {
+    left: Math.min(Math.max(padding, left), Math.max(padding, window.innerWidth - width - padding)),
+    top: Math.min(Math.max(padding, top), Math.max(padding, window.innerHeight - height - padding)),
+  }
+}
+
+function restoreLauncherPosition() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(positionStorageKey) || 'null')
+    if (Number.isFinite(saved?.left) && Number.isFinite(saved?.top)) {
+      launcherPosition.value = clampPosition(saved.left, saved.top)
+      return
+    }
+  } catch (_) { /* 忽略损坏的本地位置记录 */ }
+  const width = launcher.value?.offsetWidth || 104
+  const height = launcher.value?.offsetHeight || 46
+  launcherPosition.value = clampPosition(window.innerWidth - width - 28, window.innerHeight - height - 28)
+}
+
+function launcherStyle() {
+  if (!launcherPosition.value) return undefined
+  return { left: `${launcherPosition.value.left}px`, top: `${launcherPosition.value.top}px`, right: 'auto', bottom: 'auto' }
+}
+
+function startDrag(event) {
+  if (event.button !== 0) return
+  const rect = event.currentTarget.getBoundingClientRect()
+  dragState = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top }
+  event.currentTarget.setPointerCapture(event.pointerId)
+}
+
+function moveDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return
+  const deltaX = event.clientX - dragState.startX
+  const deltaY = event.clientY - dragState.startY
+  if (!dragging.value && Math.hypot(deltaX, deltaY) < 5) return
+  dragging.value = true
+  suppressLauncherClick = true
+  launcherPosition.value = clampPosition(dragState.left + deltaX, dragState.top + deltaY)
+}
+
+function endDrag(event) {
+  if (!dragState || event.pointerId !== dragState.pointerId) return
+  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  if (dragging.value && launcherPosition.value) {
+    window.localStorage.setItem(positionStorageKey, JSON.stringify(launcherPosition.value))
+  }
+  dragState = null
+  dragging.value = false
+  window.setTimeout(() => { suppressLauncherClick = false }, 0)
+}
+
+function handleLauncherClick() {
+  if (!suppressLauncherClick) open()
+}
+
+function keepLauncherInViewport() {
+  if (launcherPosition.value) launcherPosition.value = clampPosition(launcherPosition.value.left, launcherPosition.value.top)
+}
+
 async function scrollToBottom() { await nextTick(); if (messageList.value) messageList.value.scrollTop = messageList.value.scrollHeight }
 
 defineExpose({ open })
-onBeforeUnmount(() => window.clearTimeout(replyTimer))
+onMounted(async () => {
+  await nextTick()
+  restoreLauncherPosition()
+  window.addEventListener('resize', keepLauncherInViewport)
+})
+onBeforeUnmount(() => {
+  window.clearTimeout(replyTimer)
+  window.removeEventListener('resize', keepLauncherInViewport)
+})
 </script>
 
 <template>
-  <button v-if="!opened" class="agent-launcher" title="打开智汇AI助手" @click="open"><span class="launcher-icon">✦</span><strong>AI 助手</strong></button>
+  <button v-if="!opened" ref="launcher" :class="['agent-launcher', { dragging }]" :style="launcherStyle()" title="拖动可调整位置，点击打开智汇AI助手" @click="handleLauncherClick" @pointerdown="startDrag" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag"><span class="launcher-icon">✦</span><strong>AI 助手</strong></button>
   <aside v-else class="agent-drawer" aria-label="智汇AI助手">
     <header class="agent-header"><div><span class="agent-logo">AI</span><div><strong>智汇AI助手</strong><small>前端 Mock 演示</small></div></div><div><button title="最小化" @click="minimize">−</button><button title="关闭并清空" @click="close">×</button></div></header>
     <div ref="messageList" class="agent-messages">
@@ -86,8 +165,9 @@ onBeforeUnmount(() => window.clearTimeout(replyTimer))
 </template>
 
 <style scoped>
-.agent-launcher { position: fixed; right: 28px; bottom: 28px; z-index: 45; height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 16px 0 8px; border: 1px solid #dfe5f2; border-radius: 23px; color: #30343a; background: rgba(255,255,255,.96); box-shadow: 0 8px 24px rgba(31,35,41,.12); cursor: pointer; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; backdrop-filter: blur(10px); }
+.agent-launcher { position: fixed; right: 28px; bottom: 28px; z-index: 45; height: 46px; display: flex; align-items: center; gap: 9px; padding: 0 16px 0 8px; border: 1px solid #dfe5f2; border-radius: 23px; color: #30343a; background: rgba(255,255,255,.96); box-shadow: 0 8px 24px rgba(31,35,41,.12); cursor: grab; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; backdrop-filter: blur(10px); touch-action: none; user-select: none; -webkit-user-select: none; }
 .agent-launcher:hover { transform: translateY(-2px); border-color: #a9c0ff; box-shadow: 0 12px 30px rgba(51,112,255,.2); }.agent-launcher:active { transform: translateY(0); }.launcher-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #3370ff; font-size: 14px; box-shadow: 0 4px 10px rgba(51,112,255,.24); }.agent-launcher strong { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.agent-launcher.dragging { cursor: grabbing; transform: none; transition: none; box-shadow: 0 14px 34px rgba(51,112,255,.25); }
 .agent-drawer { position: fixed; right: 22px; bottom: 22px; z-index: 46; width: min(400px, calc(100vw - 32px)); height: min(70vh, 680px); min-height: 480px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e2e6ee; border-radius: 20px; background: #f7f8fa; box-shadow: 0 26px 80px rgba(31,35,41,.23); }
 .agent-header { min-height: 66px; flex: 0 0 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px 0 17px; border-bottom: 1px solid #e8eaed; background: #fff; }.agent-header > div { display: flex; align-items: center; gap: 10px; }.agent-logo, .agent-avatar { display: grid; place-items: center; color: #fff; background: linear-gradient(145deg, #3370ff, #7b61ff); font-weight: 800; }.agent-logo { width: 36px; height: 36px; border-radius: 11px; font-size: 11px; }.agent-header strong, .agent-header small { display: block; }.agent-header strong { font-size: 14px; }.agent-header small { margin-top: 3px; color: #8f959e; font-size: 9px; }.agent-header button { width: 30px; height: 30px; border: 0; border-radius: 8px; color: #7b8088; background: transparent; font-size: 19px; cursor: pointer; }.agent-header button:hover { background: #f2f3f5; }
 .agent-messages { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding: 18px; scroll-behavior: smooth; }.agent-welcome { padding: 17px 4px 8px; text-align: center; }.agent-welcome-icon { width: 50px; height: 50px; display: grid; place-items: center; margin: 0 auto; border-radius: 16px; color: #3370ff; background: #eaf0ff; font-size: 21px; }.agent-welcome h2 { margin: 13px 0 6px; font-size: 17px; }.agent-welcome p { margin: 0 0 18px; color: #8f959e; font-size: 11px; }.agent-shortcuts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }.agent-shortcuts button { display: flex; justify-content: space-between; padding: 10px 11px; border: 1px solid #e2e6ee; border-radius: 10px; color: #50555d; background: #fff; font-size: 11px; text-align: left; cursor: pointer; }.agent-shortcuts button:hover { border-color: #aac0ff; color: #3370ff; }

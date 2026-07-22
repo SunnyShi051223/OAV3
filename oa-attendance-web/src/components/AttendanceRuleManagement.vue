@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { attendanceApi, departmentApi } from '../api/oa'
+import ListPagination from './ListPagination.vue'
 
 const props = defineProps({ permissions: { type: Array, default: () => [] }, roleCode: { type: String, default: '' }, currentDeptId: { type: Number, default: null } })
 const emit = defineEmits(['back'])
@@ -11,6 +12,8 @@ const error = ref('')
 const notice = ref('')
 const deptFilter = ref('')
 const statusFilter = ref('')
+const currentPage = ref(1)
+const pageSize = 3
 const dialog = ref({ visible: false, mode: 'create', form: defaultForm(), error: '', saving: false })
 const weekdays = [{ value: 1, label: '周一' }, { value: 2, label: '周二' }, { value: 3, label: '周三' }, { value: 4, label: '周四' }, { value: 5, label: '周五' }, { value: 6, label: '周六' }, { value: 7, label: '周日' }]
 
@@ -20,6 +23,12 @@ const filteredRules = computed(() => rules.value.filter((item) => {
   if (statusFilter.value && ruleState(item).value !== statusFilter.value) return false
   return true
 }))
+const paginatedRules = computed(() => filteredRules.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
+
+watch([deptFilter, statusFilter], () => { currentPage.value = 1 })
+watch(() => filteredRules.value.length, (total) => {
+  currentPage.value = Math.min(currentPage.value, Math.max(1, Math.ceil(total / pageSize)))
+})
 
 onMounted(load)
 
@@ -92,7 +101,8 @@ function ruleState(item) { const today = new Date().toISOString().slice(0, 10); 
     <div class="rule-summary-row"><article><span>规则总数</span><strong>{{ rules.length }}</strong></article><article><span>生效中</span><strong>{{ rules.filter((item) => ruleState(item).value === 'active').length }}</strong></article><article><span>覆盖部门</span><strong>{{ new Set(rules.filter((item) => item.deptId).map((item) => item.deptId)).size }}</strong></article></div>
     <div class="rule-toolbar"><select v-model="deptFilter"><option value="">全部部门</option><option :value="0">全公司</option><option v-for="dept in departments" :key="dept.deptId" :value="dept.deptId">{{ dept.deptName }}</option></select><select v-model="statusFilter"><option value="">全部状态</option><option value="active">生效中</option><option value="upcoming">待生效</option><option value="expired">已过期</option><option value="disabled">已停用</option></select><button :disabled="loading" @click="load">↻ {{ loading ? '刷新中' : '刷新' }}</button></div>
     <div v-if="notice" class="attendance-notice">✓ {{ notice }}</div><div v-if="error" class="api-error">{{ error }}</div>
-    <div class="rule-grid"><article v-for="item in filteredRules" :key="item.ruleId" class="rule-list-card"><header><div><span>{{ item.deptName || '全公司' }}</span><h2>{{ item.ruleName }}</h2></div><b :class="ruleState(item).value">{{ ruleState(item).label }}</b></header><div class="rule-shift"><strong>{{ timeInput(item.workStartTime) }}</strong><i></i><strong>{{ timeInput(item.workEndTime) }}</strong></div><dl><div><dt>有效期</dt><dd>{{ dateInput(item.effectiveStartDate) || '不限' }} 至 {{ dateInput(item.effectiveEndDate) || '不限' }}</dd></div><div><dt>工作日</dt><dd>{{ workDayText(item.workDays) }}</dd></div><div><dt>签到窗口</dt><dd>{{ timeInput(item.workStartTime) }} - {{ timeInput(item.checkInEndTime) || '未设置' }}</dd></div><div><dt>打卡校验</dt><dd>{{ item.requireWifi ? 'WiFi ' : '' }}{{ item.requireLocation ? '定位' : '' }}{{ !item.requireWifi && !item.requireLocation ? '无需校验' : '' }}</dd></div></dl><footer><button v-if="can('attendance:rule:update') && canManage(item)" @click="openEdit(item)">编辑</button><button v-if="can('attendance:rule:delete') && canManage(item)" class="danger" @click="remove(item)">删除</button></footer></article></div>
+    <div class="rule-grid"><article v-for="item in paginatedRules" :key="item.ruleId" class="rule-list-card"><header><div><span>{{ item.deptName || '全公司' }}</span><h2>{{ item.ruleName }}</h2></div><b :class="ruleState(item).value">{{ ruleState(item).label }}</b></header><div class="rule-shift"><strong>{{ timeInput(item.workStartTime) }}</strong><i></i><strong>{{ timeInput(item.workEndTime) }}</strong></div><dl><div><dt>有效期</dt><dd>{{ dateInput(item.effectiveStartDate) || '不限' }} 至 {{ dateInput(item.effectiveEndDate) || '不限' }}</dd></div><div><dt>工作日</dt><dd>{{ workDayText(item.workDays) }}</dd></div><div><dt>签到窗口</dt><dd>{{ timeInput(item.workStartTime) }} - {{ timeInput(item.checkInEndTime) || '未设置' }}</dd></div><div><dt>打卡校验</dt><dd>{{ item.requireWifi ? 'WiFi ' : '' }}{{ item.requireLocation ? '定位' : '' }}{{ !item.requireWifi && !item.requireLocation ? '无需校验' : '' }}</dd></div></dl><footer><button v-if="can('attendance:rule:update') && canManage(item)" @click="openEdit(item)">编辑</button><button v-if="can('attendance:rule:delete') && canManage(item)" class="danger" @click="remove(item)">删除</button></footer></article></div>
+    <ListPagination v-model:page="currentPage" :total="filteredRules.length" :page-size="pageSize" />
     <div v-if="!loading && !filteredRules.length" class="approval-empty"><span>勤</span><strong>暂无符合条件的考勤规则</strong><p>新建规则后，适用部门的员工即可进行签到。</p></div>
 
     <div v-if="dialog.visible" class="dialog-mask" @click.self="dialog.visible = false"><form class="data-dialog rule-dialog" @submit.prevent="save"><div class="dialog-heading"><div><h2>{{ dialog.mode === 'create' ? '新建' : '编辑' }}考勤规则</h2><p>设置适用范围、班次和打卡要求</p></div><button type="button" @click="dialog.visible = false">×</button></div><div class="form-grid">
@@ -114,6 +124,7 @@ function ruleState(item) { const today = new Date().toISOString().slice(0, 10); 
 .rule-summary-row span, .rule-summary-row strong { display: block; }.rule-summary-row span { color: #8f959e; font-size: 11px; }.rule-summary-row strong { margin-top: 8px; font-size: 23px; }
 .rule-toolbar { display: flex; gap: 9px; margin-bottom: 14px; }.rule-toolbar select, .rule-toolbar button { height: 38px; padding: 0 13px; border: 1px solid #dfe3e9; border-radius: 9px; background: #fff; }.rule-toolbar select { min-width: 150px; }.rule-toolbar button { color: #3370ff; cursor: pointer; }
 .rule-grid { display: grid; grid-template-columns: repeat(3, minmax(290px, 1fr)); gap: 14px; }.rule-list-card { padding: 20px; border: 1px solid #e8ebf0; border-radius: 16px; background: #fff; box-shadow: 0 7px 24px rgba(31,35,41,.04); }.rule-list-card header { display: flex; justify-content: space-between; gap: 12px; }.rule-list-card header span { color: #8f959e; font-size: 10px; }.rule-list-card h2 { margin: 6px 0 0; font-size: 17px; }.rule-list-card header b { height: 23px; padding: 5px 9px; border-radius: 12px; font-size: 9px; font-weight: 500; }.rule-list-card header b.active { color: #16865a; background: #e8f8f1; }.rule-list-card header b.upcoming { color: #3370ff; background: #edf3ff; }.rule-list-card header b.expired, .rule-list-card header b.disabled { color: #8f959e; background: #f0f1f2; }
+.rule-management-page :deep(.table-pagination) { min-width: 0; margin-top: 14px; border: 1px solid #e8ebf0; border-radius: 12px; background: #fff; }
 .rule-shift { display: flex; align-items: center; gap: 12px; margin: 22px 0; padding: 14px; border-radius: 11px; background: #f7f8fa; }.rule-shift strong { font-size: 21px; }.rule-shift i { height: 1px; flex: 1; background: #cfd5dd; }
 .rule-list-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 0; }.rule-list-card dt { margin-bottom: 5px; color: #a2a7ae; font-size: 9px; }.rule-list-card dd { overflow: hidden; margin: 0; color: #50555d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.rule-list-card footer { display: flex; justify-content: flex-end; gap: 5px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #f0f1f3; }.rule-list-card footer button { padding: 5px 8px; border: 0; color: #3370ff; background: transparent; cursor: pointer; }.rule-list-card footer .danger { color: #d83931; }
 .rule-dialog { width: min(820px, 100%); }.weekday-field { display: flex; flex-wrap: wrap; gap: 12px; padding: 13px; border: 1px solid #e5e8ed; border-radius: 10px; }.weekday-field legend { padding: 0 5px; color: #50555d; font-size: 12px; font-weight: 600; }.weekday-field label, .rule-switches label { flex-direction: row; align-items: center; gap: 5px; font-weight: 400; }.weekday-field input, .rule-switches input { width: auto; height: auto; }.rule-switches { display: flex; gap: 22px; padding: 13px; border-radius: 10px; background: #f7f8fa; }
