@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://oa.example.com/process">
+    <process id="applicationApproval" name="统一申请审批流程" isExecutable="true">
+        <startEvent id="start" name="提交申请"/>
+        <sequenceFlow id="flow-start-level1" sourceRef="start" targetRef="level1Approval"/>
+
+        <!-- 一级审批：职位等级+1审批人 -->
+        <userTask id="level1Approval"
+                  name="一级审批"
+                  flowable:assignee="${level1Approver}"/>
+        <sequenceFlow id="flow-level1-decision" sourceRef="level1Approval" targetRef="level1Decision"/>
+
+        <exclusiveGateway id="level1Decision" name="一级审批结果"/>
+        <sequenceFlow id="flow-level1-rejected" sourceRef="level1Decision" targetRef="rejectedEnd">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approved == false}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-level1-approved" sourceRef="level1Decision" targetRef="durationCheck">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approved == true}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 判断是否需要二级审批 -->
+        <exclusiveGateway id="durationCheck" name="审批层级判断"/>
+        <sequenceFlow id="flow-short-leave" sourceRef="durationCheck" targetRef="approvedEnd">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${longDuration == false}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-long-leave" sourceRef="durationCheck" targetRef="level2Approval">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${longDuration == true}]]></conditionExpression>
+        </sequenceFlow>
+
+        <!-- 二级审批：职位等级+2审批人 -->
+        <userTask id="level2Approval"
+                  name="二级审批"
+                  flowable:assignee="${level2Approver}"/>
+        <sequenceFlow id="flow-level2-decision" sourceRef="level2Approval" targetRef="level2Decision"/>
+
+        <exclusiveGateway id="level2Decision" name="二级审批结果"/>
+        <sequenceFlow id="flow-level2-rejected" sourceRef="level2Decision" targetRef="rejectedEnd">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approved == false}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow-level2-approved" sourceRef="level2Decision" targetRef="approvedEnd">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approved == true}]]></conditionExpression>
+        </sequenceFlow>
+
+        <endEvent id="approvedEnd" name="审批通过"/>
+        <endEvent id="rejectedEnd" name="审批驳回"/>
+    </process>
+</definitions>

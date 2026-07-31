@@ -1,0 +1,23 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: attendance-system
+  cloud:
+    nacos:
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yaml
+        group: DEFAULT_GROUP
+      discovery:
+        server-addr: 127.0.0.1:8848
+        fail-fast: false
+  config:
+    import: nacos:attendance-system.yaml
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:oa-attendance-system-secret-key-local-development}
+  expire: 604800
+  header: Authorization
